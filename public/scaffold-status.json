@@ -1,1 +1,1 @@
-{ "message": "Planning your site", "awaitingInput": false }
+{ "message": "Planning your site", "awaitingInput": true, "inputPrompt": "Features, aesthetic, and mood — please answer in the terminal." }
