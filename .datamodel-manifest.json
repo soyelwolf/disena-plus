@@ -1,0 +1,185 @@
+{
+  "environmentUrl": "https://org1f6d93cb.crm2.dynamics.com",
+  "environmentName": "Buddy UTP",
+  "publisher": { "uniqueName": "DisenaPlus", "prefix": "dpl" },
+  "note": "Entorno de prueba (Buddy UTP), distinto del entorno compartido 'Universidad Tecnologica del Peru (Upgrade)' donde la cuenta no tenía permiso de creación de tablas (prvCreateEntity denegado).",
+  "tables": [
+    {
+      "logicalName": "dpl_curso",
+      "displayName": "Curso",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_nombrecurso", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_idcursotext", "type": "String" },
+        { "logicalName": "dpl_codigocatalogo", "type": "String" },
+        { "logicalName": "dpl_carrera", "type": "String" },
+        { "logicalName": "dpl_tipoensenanza", "type": "String" },
+        { "logicalName": "dpl_ciclo", "type": "Integer" },
+        { "logicalName": "dpl_logrocurso", "type": "Memo" },
+        { "logicalName": "dpl_permiteconsignas", "type": "Boolean" },
+        { "logicalName": "dpl_permiterubricas", "type": "Boolean" },
+        { "logicalName": "dpl_permitematrizsn", "type": "Boolean" },
+        { "logicalName": "dpl_permitelistacotejo", "type": "Boolean" },
+        { "logicalName": "dpl_permiteescala", "type": "Boolean" }
+      ]
+    },
+    {
+      "logicalName": "dpl_unidad",
+      "displayName": "Unidad",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_nombreunidad", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_idunidadtext", "type": "String" },
+        { "logicalName": "dpl_numerounidad", "type": "Integer" },
+        { "logicalName": "dpl_logroespecifico", "type": "Memo" },
+        { "logicalName": "dpl_cursoid", "type": "Lookup", "referencedTable": "dpl_curso" }
+      ]
+    },
+    {
+      "logicalName": "dpl_sesion",
+      "displayName": "Sesión / Elemento",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_elemento", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_idsesiontext", "type": "String" },
+        { "logicalName": "dpl_abreviatura", "type": "String" },
+        { "logicalName": "dpl_tema", "type": "String" },
+        { "logicalName": "dpl_unidadid", "type": "Lookup", "referencedTable": "dpl_unidad" }
+      ]
+    },
+    {
+      "logicalName": "dpl_consigna",
+      "displayName": "Consigna",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_idconsignatext", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_quesedeevaluara", "type": "Memo" },
+        { "logicalName": "dpl_indicaciongeneral", "type": "Memo" },
+        { "logicalName": "dpl_indicacionesespecificas", "type": "Memo" },
+        { "logicalName": "dpl_recomendaciones", "type": "Memo" },
+        { "logicalName": "dpl_anexo", "type": "Memo" },
+        { "logicalName": "dpl_estado", "type": "String" },
+        { "logicalName": "dpl_activado", "type": "Boolean" },
+        { "logicalName": "dpl_usuarioregistro", "type": "String" },
+        { "logicalName": "dpl_fecharegistro", "type": "DateTime" },
+        { "logicalName": "dpl_sesionid", "type": "Lookup", "referencedTable": "dpl_sesion" }
+      ]
+    },
+    {
+      "logicalName": "dpl_rubrica",
+      "displayName": "Rúbrica",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_nombre", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_estado", "type": "String" },
+        { "logicalName": "dpl_activado", "type": "Boolean" },
+        { "logicalName": "dpl_usuarioregistro", "type": "String" },
+        { "logicalName": "dpl_fecharegistro", "type": "DateTime" },
+        { "logicalName": "dpl_sesionid", "type": "Lookup", "referencedTable": "dpl_sesion" }
+      ]
+    },
+    {
+      "logicalName": "dpl_rubricacriterio",
+      "displayName": "Criterio de Rúbrica",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_criterio", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_orden", "type": "Integer" },
+        { "logicalName": "dpl_definicioncriterio", "type": "Memo" },
+        { "logicalName": "dpl_estandaresperado", "type": "Memo" },
+        { "logicalName": "dpl_puntajeestandar", "type": "Decimal" },
+        { "logicalName": "dpl_enproceso2", "type": "Memo" },
+        { "logicalName": "dpl_puntajeenproceso2", "type": "Decimal" },
+        { "logicalName": "dpl_enproceso1", "type": "Memo" },
+        { "logicalName": "dpl_puntajeenproceso1", "type": "Decimal" },
+        { "logicalName": "dpl_inicial", "type": "Memo" },
+        { "logicalName": "dpl_puntajeinicial", "type": "Decimal" },
+        { "logicalName": "dpl_rubricaid", "type": "Lookup", "referencedTable": "dpl_rubrica" }
+      ]
+    },
+    {
+      "logicalName": "dpl_matriz",
+      "displayName": "Matriz",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_nombre", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_estado", "type": "String" },
+        { "logicalName": "dpl_activado", "type": "Boolean" },
+        { "logicalName": "dpl_usuarioregistro", "type": "String" },
+        { "logicalName": "dpl_fecharegistro", "type": "DateTime" },
+        { "logicalName": "dpl_sesionid", "type": "Lookup", "referencedTable": "dpl_sesion" }
+      ]
+    },
+    {
+      "logicalName": "dpl_matrizpregunta",
+      "displayName": "Pregunta de Matriz",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_ejetematico", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_orden", "type": "Integer" },
+        { "logicalName": "dpl_taxonomia", "type": "String" },
+        { "logicalName": "dpl_tipoitem", "type": "String" },
+        { "logicalName": "dpl_plataforma", "type": "String" },
+        { "logicalName": "dpl_cantidaditems", "type": "Integer" },
+        { "logicalName": "dpl_puntajeia", "type": "Decimal" },
+        { "logicalName": "dpl_matrizid", "type": "Lookup", "referencedTable": "dpl_matriz" }
+      ]
+    },
+    {
+      "logicalName": "dpl_listacotejo",
+      "displayName": "Lista de Cotejo",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_nombre", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_estado", "type": "String" },
+        { "logicalName": "dpl_activado", "type": "Boolean" },
+        { "logicalName": "dpl_usuarioregistro", "type": "String" },
+        { "logicalName": "dpl_fecharegistro", "type": "DateTime" },
+        { "logicalName": "dpl_sesionid", "type": "Lookup", "referencedTable": "dpl_sesion" }
+      ]
+    },
+    {
+      "logicalName": "dpl_listacotejoindicador",
+      "displayName": "Indicador de Lista de Cotejo",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_indicador", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_orden", "type": "Integer" },
+        { "logicalName": "dpl_puntaje", "type": "Decimal" },
+        { "logicalName": "dpl_respuesta", "type": "Picklist" },
+        { "logicalName": "dpl_observaciones", "type": "Memo" },
+        { "logicalName": "dpl_listacotejoid", "type": "Lookup", "referencedTable": "dpl_listacotejo" }
+      ]
+    },
+    {
+      "logicalName": "dpl_escalavaloracion",
+      "displayName": "Escala de Valoración",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_nombre", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_estado", "type": "String" },
+        { "logicalName": "dpl_activado", "type": "Boolean" },
+        { "logicalName": "dpl_usuarioregistro", "type": "String" },
+        { "logicalName": "dpl_fecharegistro", "type": "DateTime" },
+        { "logicalName": "dpl_sesionid", "type": "Lookup", "referencedTable": "dpl_sesion" }
+      ]
+    },
+    {
+      "logicalName": "dpl_escalaindicador",
+      "displayName": "Indicador de Escala",
+      "status": "new",
+      "columns": [
+        { "logicalName": "dpl_indicador", "type": "String", "isPrimaryName": true },
+        { "logicalName": "dpl_orden", "type": "Integer" },
+        { "logicalName": "dpl_puntajeexcelente", "type": "Decimal" },
+        { "logicalName": "dpl_puntajebueno", "type": "Decimal" },
+        { "logicalName": "dpl_puntajeregular", "type": "Decimal" },
+        { "logicalName": "dpl_puntajeconerrores", "type": "Decimal" },
+        { "logicalName": "dpl_puntajenoevidenciado", "type": "Decimal" },
+        { "logicalName": "dpl_respuestaseleccionada", "type": "String" },
+        { "logicalName": "dpl_observaciones", "type": "Memo" },
+        { "logicalName": "dpl_escalavaloracionid", "type": "Lookup", "referencedTable": "dpl_escalavaloracion" }
+      ]
+    }
+  ]
+}
