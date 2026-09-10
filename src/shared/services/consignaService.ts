@@ -44,9 +44,11 @@ const buildSelect = (options?: { includeSesion?: boolean; includeRichText?: bool
   // payload here is small enough (a few KB) that always selecting it is fine —
   // unlike the old 10,000-char-per-column Dataverse cap this was written for.
   void RICH_TEXT_COLUMNS
-  const parts = [base]
-  if (options?.includeSesion) parts.push(SESION_EMBED)
-  return parts.join(', ')
+  // Always embed the parent Sesion's primary name: unlike Dataverse (which
+  // auto-annotated every lookup with the related record's display name for
+  // free), Postgres has no such annotation, and a Consigna has no name of its
+  // own — sesionNombre is what every screen's heading falls back to.
+  return [base, SESION_EMBED].join(', ')
 }
 
 const toEntity = (row: Record<string, unknown>): ConsignaEntity =>
