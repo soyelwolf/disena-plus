@@ -1,0 +1,4 @@
+description: Sets whether or not the portal can redirect the user to the profile page after successful sign-in. By default, it is set to true.
+id: d6b1cac3-36eb-4e1a-946f-d9370a3ab363
+name: Authentication/Registration/ProfileRedirectEnabled
+value: true
