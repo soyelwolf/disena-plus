@@ -1,11 +1,221 @@
-/* Power Pages — Site Theme
-   This file is populated during site implementation with your chosen design tokens,
-   typography, and color palette. */
+/* Diseña+ — Design tokens & shared utilities
+   Aesthetic: Minimal & Clean · Mood: Professional & Trustworthy
+   Type: IBM Plex Sans (UI) + JetBrains Mono (codes/ids/data) */
 
-*,*::before,*::after { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  /* Typography */
+  --font-heading: 'IBM Plex Sans', sans-serif;
+  --font-body: 'IBM Plex Sans', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Color — deep forest green primary, warm amber accent, warm neutral base */
+  --color-primary: #1b4b3f;
+  --color-primary-dark: #123329;
+  --color-primary-light: #e8f0ed;
+  --color-accent: #d98e2a;
+  --color-accent-dark: #b9741a;
+  --color-bg: #f7f6f3;
+  --color-surface: #ffffff;
+  --color-text: #1a1f1e;
+  --color-text-muted: #5c655f;
+  --color-border: #e2e0da;
+  --color-success: #2f7d4f;
+  --color-danger: #b3402f;
+  --color-warning: #d98e2a;
+
+  /* Spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 96px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 2px rgba(26, 31, 30, 0.06);
+  --shadow-md: 0 4px 16px rgba(26, 31, 30, 0.08);
+  --shadow-lg: 0 12px 32px rgba(26, 31, 30, 0.12);
+}
+
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body {
-  width: 100%; height: 100%;
-  margin: 0; padding: 0;
-  font-family: 'DM Sans', sans-serif;
+  width: 100%; min-height: 100%;
+  font-family: var(--font-body);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-text);
+}
+
+code, .mono { font-family: var(--font-mono); }
+
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button { font-family: inherit; cursor: pointer; }
+
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────── */
+
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.app-main { flex: 1; }
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 var(--space-4);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn-primary { background: var(--color-primary); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--color-primary-dark); box-shadow: var(--shadow-sm); text-decoration: none; }
+
+.btn-accent { background: var(--color-accent); color: #241300; }
+.btn-accent:hover:not(:disabled) { background: var(--color-accent-dark); text-decoration: none; }
+
+.btn-ghost { background: transparent; color: var(--color-text); border-color: var(--color-border); }
+.btn-ghost:hover:not(:disabled) { background: var(--color-primary-light); text-decoration: none; }
+
+.btn-sm { padding: var(--space-1) var(--space-3); font-size: 0.85rem; }
+
+/* ── Cards ──────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.card-interactive {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.card-interactive:hover, .card-interactive:focus-visible {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary);
+}
+
+/* ── Status badges ──────────────────────────────────────────────────── */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.badge-success { background: #e3f3e8; color: var(--color-success); }
+.badge-muted { background: var(--color-primary-light); color: var(--color-text-muted); }
+.badge-warning { background: #fbeed9; color: var(--color-accent-dark); }
+.badge-danger { background: #f7e3e0; color: var(--color-danger); }
+
+/* ── Forms ──────────────────────────────────────────────────────────── */
+
+label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: var(--space-1); }
+
+input[type="text"], input[type="search"], input[type="email"], input[type="number"],
+select, textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+  border-color: var(--color-accent);
+}
+
+/* ── Grid table (editable rows) ─────────────────────────────────────── */
+
+.grid-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.grid-table th {
+  text-align: left;
+  font-family: var(--font-heading);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  background: var(--color-primary-light);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid var(--color-border);
+}
+.grid-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+.grid-table tr:last-child td { border-bottom: none; }
+
+/* ── Motion ─────────────────────────────────────────────────────────── */
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: fadeInUp 0.5s ease-out both; }
+.animate-in:nth-child(1) { animation-delay: 0.03s; }
+.animate-in:nth-child(2) { animation-delay: 0.08s; }
+.animate-in:nth-child(3) { animation-delay: 0.13s; }
+.animate-in:nth-child(4) { animation-delay: 0.18s; }
+.animate-in:nth-child(5) { animation-delay: 0.23s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-in, .card-interactive { animation: none !important; transition: none !important; }
+}
+
+/* ── Utility ────────────────────────────────────────────────────────── */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+.stack { display: flex; flex-direction: column; gap: var(--space-3); }
+.row { display: flex; align-items: center; gap: var(--space-3); }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.muted { color: var(--color-text-muted); }

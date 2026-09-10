@@ -61,7 +61,27 @@ function makeRequest({ url, method = 'GET', headers = {}, body = null, includeHe
   });
 }
 
+/** Cloud → Power Platform API base URL mapping */
+const CLOUD_TO_API = {
+  'Public': 'https://api.powerplatform.com',
+  'UsGov': 'https://api.gov.powerplatform.microsoft.us',
+  'UsGovHigh': 'https://api.high.powerplatform.microsoft.us',
+  'UsGovDod': 'https://api.appsplatform.us',
+  'China': 'https://api.powerplatform.partner.microsoftonline.cn',
+};
+
+/** Cloud → Power Pages site URL domain mapping */
+const CLOUD_TO_SITE_DOMAIN = {
+  'Public': 'powerappsportals.com',
+  'UsGov': 'powerappsportals.us',
+  'UsGovHigh': 'high.powerappsportals.us',
+  'UsGovDod': 'appsplatform.us',
+  'China': 'powerappsportals.cn',
+};
+
 module.exports = {
   getAuthToken,
   makeRequest,
+  CLOUD_TO_API,
+  CLOUD_TO_SITE_DOMAIN,
 };
