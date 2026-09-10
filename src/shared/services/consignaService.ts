@@ -160,6 +160,7 @@ const buildConsignaRow = (
   set('dpl_indicacionesespecificas', payload.indicacionesEspecificas)
   set('dpl_recomendaciones', payload.recomendaciones)
   set('dpl_anexo', payload.anexo)
+  set('dpl_instrumento', payload.instrumento)
   set('dpl_estado', payload.estado)
   set('dpl_activado', payload.activado)
   set('dpl_usuarioregistro', payload.usuarioRegistro)

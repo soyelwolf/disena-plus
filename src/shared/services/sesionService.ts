@@ -29,7 +29,7 @@ import {
 
 const TABLE = 'dpl_sesion'
 const UNIDAD_EMBED =
-  'dpl_UnidadId:dpl_unidad(dpl_unidadid,dpl_nombreunidad,dpl_idunidadtext,dpl_numerounidad)'
+  'dpl_UnidadId:dpl_unidad(dpl_unidadid,dpl_nombreunidad,dpl_idunidadtext,dpl_numerounidad,dpl_logroespecifico)'
 
 const toEntity = (row: Record<string, unknown>): SesionEntity =>
   withStateLabel(withLookupValue(row, 'dpl_unidadid')) as SesionEntity

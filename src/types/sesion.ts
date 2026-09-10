@@ -62,6 +62,7 @@ export interface UnidadResumenEntity {
   dpl_nombreunidad?: string
   dpl_idunidadtext?: string
   dpl_numerounidad?: number
+  dpl_logroespecifico?: string
   [key: string]: unknown
 }
 
@@ -92,6 +93,8 @@ export interface UnidadResumen {
   nombre: string
   idUnidadText: string
   numero: number
+  /** dpl_logroespecifico — the unit's learning outcome, shown read-only as "Logro a evaluar". */
+  logroEspecifico: string
 }
 
 /** Clean domain type the UI consumes. */
@@ -145,6 +148,7 @@ export const mapUnidadResumenEntity = (entity: UnidadResumenEntity): UnidadResum
   nombre: entity.dpl_nombreunidad ?? '',
   idUnidadText: entity.dpl_idunidadtext ?? '',
   numero: entity.dpl_numerounidad ?? 0,
+  logroEspecifico: entity.dpl_logroespecifico ?? '',
 })
 
 export const mapSesionEntity = (entity: SesionEntity): Sesion => {

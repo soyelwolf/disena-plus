@@ -93,12 +93,17 @@ export const MOCK_SESIONES: Sesion[] = [MOCK_SESION_PC1, MOCK_SESION_APF1, MOCK_
 
 // ── Consignas ──────────────────────────────────────────────────────────────
 
+/** dpl_unidad.dpl_logroespecifico, read-only — shown as "Logro a evaluar". */
+export const MOCK_LOGRO_ESPECIFICO: Record<string, string> = {
+  [MOCK_SESION_PC1.id]:
+    'Al finalizar la unidad, el estudiante aplica las ecuaciones diferenciales de primer orden en problemas de ingeniería.',
+}
+
 export const MOCK_CONSIGNAS: Record<string, Consigna> = {
   [MOCK_SESION_PC1.id]: {
     id: 'mock-consigna-pc1',
     idConsignaText: 'C26-U2-S10',
-    queSeEvaluara:
-      '<p><strong>Logro a evaluar:</strong> Al finalizar la unidad, el estudiante aplica las ecuaciones diferenciales de primer orden en problemas de ingeniería.</p>',
+    queSeEvaluara: '',
     indicacionGeneral:
       '<p>La evaluación es individual. Desarrolla una práctica calificada con el objetivo de demostrar la aplicación de ecuaciones diferenciales ordinarias en la resolución de problemas de ingeniería, específicamente aquellos correspondientes a la Unidad 1 de Cálculo para la Toma de Decisiones. La actividad te permitirá comprobar si una función es solución de una ecuación diferencial, resolver diversos tipos de ecuaciones diferenciales ordinarias y analizar su uso en contextos de crecimiento, decaimiento, conservación de energía o masa, así como en sistemas de mezclas y circuitos en serie.</p>',
     indicacionesEspecificas:
@@ -106,6 +111,7 @@ export const MOCK_CONSIGNAS: Record<string, Consigna> = {
     recomendaciones:
       '<p>Revisa previamente los métodos de resolución de ecuaciones diferenciales de primer orden vistos en clase. Organiza tu tiempo para responder primero las preguntas que domines con mayor seguridad.</p>',
     anexo: '',
+    instrumento: 'matriz con rúbrica',
     estado: 'PROCESADO',
     activado: true,
     usuarioRegistro: 'ProAc',

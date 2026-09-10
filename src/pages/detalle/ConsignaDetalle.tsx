@@ -2,22 +2,33 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import RichTextEditor from '../../components/RichTextEditor'
 import GenerarIABoton from '../../components/GenerarIABoton'
+import AdjuntosPanel from '../../components/AdjuntosPanel'
 import {
   listConsignasBySesion,
+  updateConsigna,
   updateConsignaRichText,
   type ConsignaRichTextField,
 } from '../../shared/services/consignaService'
+import { getSesionById } from '../../shared/services/sesionService'
 import type { Consigna } from '../../types/consigna'
-import { MOCK_CONSIGNAS, MOCK_CURSO_ID } from '../../shared/mockData'
+import { MOCK_CONSIGNAS, MOCK_CURSO_ID, MOCK_LOGRO_ESPECIFICO } from '../../shared/mockData'
 
 type CampoRico = ConsignaRichTextField
 
 const CAMPOS_RICOS: CampoRico[] = [
-  'queSeEvaluara',
   'indicacionGeneral',
   'indicacionesEspecificas',
   'recomendaciones',
   'anexo',
+]
+
+const INSTRUMENTO_OPTIONS = [
+  'rúbrica',
+  'matriz con rúbrica',
+  'matriz sin rúbrica',
+  'lista de cotejo',
+  'escala de valoración',
+  'escala de valoración (administración)',
 ]
 
 export default function ConsignaDetalle() {
@@ -25,6 +36,7 @@ export default function ConsignaDetalle() {
   const isMock = cursoId === MOCK_CURSO_ID
 
   const [consigna, setConsigna] = useState<Consigna | null>(null)
+  const [logroEspecifico, setLogroEspecifico] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [usingMock, setUsingMock] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -34,17 +46,23 @@ export default function ConsignaDetalle() {
     if (!sesionId) return
     if (isMock) {
       setConsigna(MOCK_CONSIGNAS[sesionId] ?? null)
+      setLogroEspecifico(MOCK_LOGRO_ESPECIFICO[sesionId] ?? '')
       setUsingMock(true)
       setIsLoading(false)
       return
     }
     setIsLoading(true)
     try {
-      const result = await listConsignasBySesion(sesionId, { includeRichText: true, pageSize: 1 })
+      const [result, sesion] = await Promise.all([
+        listConsignasBySesion(sesionId, { includeRichText: true, pageSize: 1 }),
+        getSesionById(sesionId, { includeUnidad: true }),
+      ])
       setConsigna(result.items[0] ?? null)
+      setLogroEspecifico(sesion?.unidad?.logroEspecifico ?? '')
       setUsingMock(false)
     } catch {
       setConsigna(MOCK_CONSIGNAS[sesionId] ?? Object.values(MOCK_CONSIGNAS)[0] ?? null)
+      setLogroEspecifico(MOCK_LOGRO_ESPECIFICO[sesionId] ?? '')
       setUsingMock(true)
     } finally {
       setIsLoading(false)
@@ -63,6 +81,10 @@ export default function ConsignaDetalle() {
     setConsigna(prev => (prev ? { ...prev, [campo]: html } : prev))
   }
 
+  const handleInstrumentoChange = (instrumento: string) => {
+    setConsigna(prev => (prev ? { ...prev, instrumento } : prev))
+  }
+
   const handleSave = async () => {
     if (!consigna) return
     if (usingMock) {
@@ -71,8 +93,10 @@ export default function ConsignaDetalle() {
     }
     setIsSaving(true)
     try {
-      // Each rich text field is an independent column — save them in parallel.
-      await Promise.all(CAMPOS_RICOS.map(campo => updateConsignaRichText(consigna.id, campo, consigna[campo])))
+      await Promise.all([
+        ...CAMPOS_RICOS.map(campo => updateConsignaRichText(consigna.id, campo, consigna[campo])),
+        updateConsigna(consigna.id, { instrumento: consigna.instrumento }),
+      ])
       setSavedAt(new Date().toLocaleString('es-PE'))
     } finally {
       setIsSaving(false)
@@ -105,9 +129,13 @@ export default function ConsignaDetalle() {
           </div>
 
           <div className="stack" style={{ gap: 'var(--space-4)' }}>
-            <div className="card animate-in" style={{ padding: 'var(--space-4)' }}>
-              <RichTextEditor label="Qué se evaluará" value={consigna.queSeEvaluara} onChange={html => handleChange('queSeEvaluara', html)} />
-            </div>
+            {logroEspecifico && (
+              <div className="card animate-in" style={{ padding: 'var(--space-4)' }}>
+                <p style={{ fontWeight: 700, marginBottom: 'var(--space-2)' }}>Logro a evaluar</p>
+                <p className="muted" style={{ fontSize: '0.9rem' }}>{logroEspecifico}</p>
+              </div>
+            )}
+
             <div className="card animate-in" style={{ padding: 'var(--space-4)' }}>
               <RichTextEditor label="Indicación General" value={consigna.indicacionGeneral} onChange={html => handleChange('indicacionGeneral', html)} minHeight={160} />
             </div>
@@ -117,8 +145,38 @@ export default function ConsignaDetalle() {
             <div className="card animate-in" style={{ padding: 'var(--space-4)' }}>
               <RichTextEditor label="Recomendaciones" value={consigna.recomendaciones} onChange={html => handleChange('recomendaciones', html)} />
             </div>
+
             <div className="card animate-in" style={{ padding: 'var(--space-4)' }}>
-              <RichTextEditor label="Anexo" value={consigna.anexo} onChange={html => handleChange('anexo', html)} />
+              <label htmlFor="instrumento" style={{ display: 'block', fontWeight: 700, marginBottom: 'var(--space-2)' }}>
+                Instrumento
+              </label>
+              <select
+                id="instrumento"
+                value={consigna.instrumento}
+                onChange={e => handleInstrumentoChange(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: 'var(--space-2) var(--space-3)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  fontFamily: 'var(--font-body)',
+                  fontSize: '0.95rem',
+                }}
+              >
+                <option value="">— Sin asignar —</option>
+                {INSTRUMENTO_OPTIONS.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="card animate-in" style={{ padding: 'var(--space-4)' }}>
+              <RichTextEditor label="Anexo (Opcional)" value={consigna.anexo} onChange={html => handleChange('anexo', html)} />
+            </div>
+
+            <div className="card animate-in" style={{ padding: 'var(--space-4)' }}>
+              <p style={{ fontWeight: 700, marginBottom: 'var(--space-2)' }}>Datos adjuntos</p>
+              <AdjuntosPanel carpeta={`consigna/${consigna.id}`} disabled={usingMock} />
             </div>
           </div>
 

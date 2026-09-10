@@ -98,6 +98,7 @@ export interface ConsignaEntity {
   dpl_recomendaciones?: string
   /** HTML string from the rich text editor — stored/returned verbatim. */
   dpl_anexo?: string
+  dpl_instrumento?: string
   dpl_estado?: string
   dpl_activado?: boolean
   dpl_usuarioregistro?: string
@@ -145,6 +146,8 @@ export interface Consigna {
   recomendaciones: string
   /** HTML — pass to the rich text editor/viewer as-is. */
   anexo: string
+  /** dpl_instrumento — which evaluation instrument this consigna resolves to. */
+  instrumento: string
   estado: string
   activado: boolean
   usuarioRegistro: string
@@ -176,6 +179,7 @@ export interface CreateConsignaInput {
   recomendaciones?: string
   /** HTML from the rich text editor — sent verbatim. */
   anexo?: string
+  instrumento?: string
   estado?: string
   activado?: boolean
   usuarioRegistro?: string
@@ -197,6 +201,7 @@ export interface UpdateConsignaInput {
   recomendaciones?: string
   /** HTML from the rich text editor — sent verbatim. */
   anexo?: string
+  instrumento?: string
   estado?: string
   activado?: boolean
   usuarioRegistro?: string
@@ -234,6 +239,7 @@ export const mapConsignaEntity = (entity: ConsignaEntity): Consigna => {
     indicacionesEspecificas: entity.dpl_indicacionesespecificas ?? '',
     recomendaciones: entity.dpl_recomendaciones ?? '',
     anexo: entity.dpl_anexo ?? '',
+    instrumento: entity.dpl_instrumento ?? '',
     // ── Scalars ──
     estado: entity.dpl_estado ?? '',
     activado: entity.dpl_activado ?? false,
