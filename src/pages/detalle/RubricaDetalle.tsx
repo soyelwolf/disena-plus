@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useRubrica } from '../../shared/hooks/useRubrica'
+import GenerarIABoton from '../../components/GenerarIABoton'
 import { MOCK_RUBRICAS, MOCK_CURSO_ID } from '../../shared/mockData'
 
 export default function RubricaDetalle() {
@@ -45,7 +46,10 @@ export default function RubricaDetalle() {
         <>
           <div className="row-between animate-in" style={{ margin: 'var(--space-3) 0 var(--space-3)' }}>
             <h1 style={{ fontSize: '1.3rem' }}>Rúbrica de {elementoNombre ?? rubrica.nombre}</h1>
-            {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
+            <div className="row" style={{ gap: 'var(--space-2)', alignItems: 'center' }}>
+              {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
+              <GenerarIABoton />
+            </div>
           </div>
 
           {saveError && <p style={{ color: 'var(--color-danger)', fontSize: '0.85rem' }}>{saveError}</p>}

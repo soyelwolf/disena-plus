@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import RichTextEditor from '../../components/RichTextEditor'
+import GenerarIABoton from '../../components/GenerarIABoton'
 import {
   listConsignasBySesion,
   updateConsignaRichText,
@@ -97,7 +98,10 @@ export default function ConsignaDetalle() {
               <h1 style={{ fontSize: '1.3rem' }}>Consigna para {elementoNombre ?? consigna.sesionNombre}</h1>
               <p className="mono muted" style={{ fontSize: '0.8rem' }}>{consigna.idConsignaText}</p>
             </div>
-            {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
+            <div className="row" style={{ gap: 'var(--space-2)', alignItems: 'center' }}>
+              {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
+              <GenerarIABoton />
+            </div>
           </div>
 
           <div className="stack" style={{ gap: 'var(--space-4)' }}>

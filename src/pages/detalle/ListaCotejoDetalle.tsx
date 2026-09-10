@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useListaCotejo } from '../../shared/hooks/useListaCotejo'
+import GenerarIABoton from '../../components/GenerarIABoton'
 import { listListasCotejoPorSesion } from '../../shared/services/listaCotejoService'
 import { RESPUESTA } from '../../types/listaCotejo'
 import { MOCK_LISTAS_COTEJO, MOCK_CURSO_ID } from '../../shared/mockData'
@@ -86,7 +87,10 @@ export default function ListaCotejoDetalle() {
         <>
           <div className="row-between animate-in" style={{ margin: 'var(--space-3) 0 var(--space-3)' }}>
             <h1 style={{ fontSize: '1.3rem' }}>Lista de Cotejo — {elementoNombre ?? lista.nombre}</h1>
-            {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
+            <div className="row" style={{ gap: 'var(--space-2)', alignItems: 'center' }}>
+              {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
+              <GenerarIABoton />
+            </div>
           </div>
 
           <p className={`badge ${puntajeActual === puntajeMax ? 'badge-success' : 'badge-muted'} animate-in`} style={{ marginBottom: 'var(--space-3)' }}>
