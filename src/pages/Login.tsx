@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useEffect, type CSSProperties } from 'react'
 import { useAuth } from '../shared/AuthContext'
+import Logo from '../components/Logo'
 
 export default function Login() {
   const { login, isAuthenticated } = useAuth()
@@ -25,9 +26,9 @@ export default function Login() {
       <div style={illustrationPane} aria-hidden="true">
         <div style={illustrationPattern} />
         <div style={illustrationContent}>
-          <div style={illustrationBadge}>UTP</div>
-          <h2 style={illustrationHeading}>Diseño de carpetas instruccionales</h2>
-          <p style={illustrationText}>
+          <div style={illustrationBadge} className="animate-in">UTP</div>
+          <h2 style={illustrationHeading} className="animate-in">Diseño de carpetas instruccionales</h2>
+          <p style={illustrationText} className="animate-in">
             Consignas, rúbricas, listas de cotejo, matrices y escalas de valoración —
             todo en un solo lugar para tu equipo docente.
           </p>
@@ -37,10 +38,7 @@ export default function Login() {
       <div style={formPane}>
         <div style={{ maxWidth: 420, width: '100%' }} className="stack">
           <div className="animate-in">
-            <span style={brandWordmark}>
-              <span style={{ color: 'var(--color-primary)' }}>Diseña</span>
-              <span style={{ color: 'var(--color-accent)' }}>+</span>
-            </span>
+            <Logo fontSize="2rem" />
             <p className="muted" style={{ marginTop: 'var(--space-1)' }}>
               Plataforma de diseño de contenido académico
             </p>
@@ -135,8 +133,3 @@ const formPane = {
   background: 'var(--color-bg)',
 }
 
-const brandWordmark = {
-  fontFamily: 'var(--font-heading)',
-  fontWeight: 700,
-  fontSize: '2rem',
-}

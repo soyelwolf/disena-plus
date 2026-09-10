@@ -1,6 +1,7 @@
 import { type CSSProperties, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../shared/AuthContext'
+import Logo from './Logo'
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, logout } = useAuth()
@@ -16,9 +17,8 @@ export default function Layout({ children }: { children: ReactNode }) {
       {isAuthenticated && (
         <header style={headerStyle}>
           <div className="container row-between" style={{ height: 64 }}>
-            <Link to="/home" style={brandStyle} aria-label="Diseña+, ir al inicio">
-              <span style={{ color: 'var(--color-primary)' }}>Diseña</span>
-              <span style={{ color: 'var(--color-accent)' }}>+</span>
+            <Link to="/home" style={{ textDecoration: 'none' }} aria-label="Diseña+, ir al inicio">
+              <Logo />
             </Link>
             <nav aria-label="Navegación principal" className="row" style={{ gap: 'var(--space-4)' }}>
               <Link to="/cursos" style={navLinkStyle}>Cursos</Link>
@@ -53,13 +53,6 @@ const headerStyle: CSSProperties = {
   position: 'sticky',
   top: 0,
   zIndex: 10,
-}
-
-const brandStyle: CSSProperties = {
-  fontFamily: 'var(--font-heading)',
-  fontWeight: 700,
-  fontSize: '1.25rem',
-  textDecoration: 'none',
 }
 
 const navLinkStyle: CSSProperties = {
