@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useCurso } from '../shared/hooks/useCursos'
+import { MOCK_CURSO, MOCK_CURSO_ID } from '../shared/mockData'
 
 const PROCESOS = [
   { key: 'consignas', label: 'Consigna', permKey: 'permiteConsignas' as const },
@@ -12,7 +13,9 @@ const PROCESOS = [
 
 export default function PanelAdmin() {
   const { cursoId } = useParams<{ cursoId: string }>()
-  const { curso, isLoading, error } = useCurso(cursoId)
+  const isMock = cursoId === MOCK_CURSO_ID
+  const { curso: fetchedCurso, isLoading, error } = useCurso(isMock ? undefined : cursoId)
+  const curso = isMock || error ? MOCK_CURSO : fetchedCurso
 
   useEffect(() => {
     document.title = 'Control Administrativo — Diseña+'
@@ -22,15 +25,17 @@ export default function PanelAdmin() {
     <div className="container" style={{ paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-8)' }}>
       <Link to={`/cursos/${cursoId}`} className="muted" style={{ fontSize: '0.85rem' }}>← Volver al curso</Link>
 
-      <div className="card animate-in" style={{ padding: 'var(--space-4)', margin: 'var(--space-3) 0 var(--space-5)' }}>
-        <p style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.2rem' }}>
-          ⚙️ Control Administrativo
-        </p>
-        {curso && <p className="muted" style={{ fontSize: '0.85rem' }}>{curso.nombre}</p>}
+      <div className="card animate-in row-between" style={{ padding: 'var(--space-4)', margin: 'var(--space-3) 0 var(--space-5)' }}>
+        <div>
+          <p style={{ fontFamily: 'var(--font-heading)', fontWeight: 700, fontSize: '1.2rem' }}>
+            ⚙️ Control Administrativo
+          </p>
+          {curso && <p className="muted" style={{ fontSize: '0.85rem' }}>{curso.nombre}</p>}
+        </div>
+        {(isMock || error) && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
       </div>
 
-      {isLoading && <p className="muted">Cargando…</p>}
-      {error && <p style={{ color: 'var(--color-danger)' }}>{error}</p>}
+      {isLoading && !isMock && <p className="muted">Cargando…</p>}
 
       {curso && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-4)' }}>

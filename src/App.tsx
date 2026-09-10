@@ -8,6 +8,7 @@ import ListadoCursos from './pages/ListadoCursos'
 import HubCurso from './pages/HubCurso'
 import SeccionIndice from './pages/SeccionIndice'
 import PanelAdmin from './pages/PanelAdmin'
+import ElementoDetalle from './pages/detalle/ElementoDetalle'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="/cursos/:cursoId" element={<ProtectedRoute><HubCurso /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/admin" element={<ProtectedRoute><PanelAdmin /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/:seccion" element={<ProtectedRoute><SeccionIndice /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/:seccion/:sesionId" element={<ProtectedRoute><ElementoDetalle /></ProtectedRoute>} />
         </Routes>
       </Layout>
     </AuthProvider>
