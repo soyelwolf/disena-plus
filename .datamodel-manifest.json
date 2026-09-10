@@ -53,7 +53,7 @@
       "status": "new",
       "columns": [
         { "logicalName": "dpl_idconsignatext", "type": "String", "isPrimaryName": true },
-        { "logicalName": "dpl_quesedeevaluara", "type": "Memo" },
+        { "logicalName": "dpl_queseevaluara", "type": "Memo" },
         { "logicalName": "dpl_indicaciongeneral", "type": "Memo" },
         { "logicalName": "dpl_indicacionesespecificas", "type": "Memo" },
         { "logicalName": "dpl_recomendaciones", "type": "Memo" },
