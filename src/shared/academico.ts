@@ -452,6 +452,20 @@ export function advertenciasRubrica(criterios: Array<Partial<Record<keyof Criter
   if (inicial < inicialMin || inicial > inicialMax) avisos.push(`Inicial suma ${inicial} pt: debe estar entre ${inicialMin} y ${inicialMax} pt.`)
 
   criterios.forEach((c, i) => {
+    // Texts: saved as the teacher types, so they may still be empty or too long.
+    const textos: Array<[keyof CriterioCampos, string, number]> = [
+      ['dpl_criterio', 'Nombre', LIMITES.criterioNombre],
+      ['dpl_definicioncriterio', 'Descripción', LIMITES.criterioTexto],
+      ...NIVELES.map(l => [l.texto, l.label, LIMITES.criterioTexto] as [keyof CriterioCampos, string, number]),
+    ]
+    const sinTexto = textos.filter(([k]) => estaVacio(String(c[k] ?? ''))).map(([, l]) => l)
+    if (sinTexto.length === textos.length && NIVELES.every(l => vacio(c[l.puntaje]))) {
+      avisos.push(`Criterio N°${i + 1}: está vacío; complétalo o elimínalo.`)
+      return
+    }
+    const largos = textos.filter(([k, , max]) => longitud(String(c[k] ?? '')) > max).map(([, l]) => l)
+    if (sinTexto.length) avisos.push(`Criterio N°${i + 1}: falta completar ${sinTexto.join(', ')}.`)
+    if (largos.length) avisos.push(`Criterio N°${i + 1}: excede el límite de caracteres en ${largos.join(', ')}.`)
     const faltan = NIVELES.filter(l => vacio(c[l.puntaje])).map(l => l.label)
     const invalidos = NIVELES.filter(l => !vacio(c[l.puntaje]) && !(Number.isFinite(num(c[l.puntaje])) && (num(c[l.puntaje]) as number) >= 0)).map(l => l.label)
     if (faltan.length) avisos.push(`Criterio N°${i + 1}: falta el puntaje de ${faltan.join(', ')}.`)
@@ -1108,13 +1122,14 @@ export async function guardarRubricaCompleta(
   filas: Array<{ id: string | null; campos: CriterioCampos }>,
   eliminados: string[],
   usuario: string,
-): Promise<void> {
+): Promise<string[]> {
   if (eliminados.length) {
     const { error } = await supabase.from('dpl_rubricacriterio').delete().in('dpl_rubricacriterioid', eliminados)
     fail(error, 'No se pudieron quitar los criterios.')
   }
   const rubricaId = await asegurarRubrica(elemento, usuario)
   const ahora = new Date().toISOString()
+  const ids: string[] = []
   for (const [i, f] of filas.entries()) {
     if (f.id) {
       const { error } = await supabase
@@ -1122,9 +1137,16 @@ export async function guardarRubricaCompleta(
         .update({ ...f.campos, dpl_orden: i + 1, modifiedon: ahora })
         .eq('dpl_rubricacriterioid', f.id)
       fail(error, `No se pudo guardar el criterio N°${i + 1}.`)
+      ids.push(f.id)
     } else {
-      const { error } = await supabase.from('dpl_rubricacriterio').insert({ ...f.campos, dpl_rubricaid: rubricaId, dpl_orden: i + 1 })
+      const { data, error } = await supabase
+        .from('dpl_rubricacriterio')
+        .insert({ ...f.campos, dpl_rubricaid: rubricaId, dpl_orden: i + 1 })
+        .select('dpl_rubricacriterioid')
+        .single()
       fail(error, `No se pudo crear el criterio N°${i + 1}.`)
+      ids.push(data!.dpl_rubricacriterioid as string)
     }
   }
+  return ids
 }

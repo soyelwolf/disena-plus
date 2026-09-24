@@ -4,12 +4,11 @@ import Icon from '../components/Icon'
 import { CAMPO_GENERAL, PanelComentarios, type FiltroComentarios } from '../components/Comentarios'
 import TextoEnriquecido from '../components/TextoEnriquecido'
 import { estaVacio, longitud } from '../shared/textoRico'
-import { Breadcrumbs, Cargando, CursoHeader, ErrorPanel, Modal, SavingOverlay, useToast } from '../components/ui'
+import { Breadcrumbs, Cargando, CursoHeader, ErrorPanel, Modal, useToast } from '../components/ui'
 import { useAuth } from '../shared/AuthContext'
 import {
   LIMITES,
   NIVELES,
-  crearCriterios,
   REGLAS_RUBRICA,
   advertenciasRubrica,
   guardarRubricaCompleta,
@@ -17,7 +16,6 @@ import {
   getCriteriosDeElemento,
   PUNTAJE_OBJETIVO,
   type Comentario,
-  type CriterioRow,
   type CriterioCampos,
 } from '../shared/academico'
 import { useContenidoAcademico, usePuedeEditar } from '../shared/hooks/useContenidoAcademico'
@@ -42,18 +40,14 @@ const TEXTOS: Array<{ key: keyof CriterioCampos; label: string; max: number }> =
   { key: 'dpl_definicioncriterio', label: 'Descripción del criterio', max: LIMITES.criterioTexto },
 ]
 
+/** Live field errors: only what can't be saved as is (missing data is listed by the rules box). */
 function erroresFila(f: Fila): Partial<Record<keyof CriterioCampos, string>> {
   const e: Partial<Record<keyof CriterioCampos, string>> = {}
-  for (const t of TEXTOS) {
-    if (estaVacio(f[t.key])) e[t.key] = 'Completar información'
-    else if (longitud(f[t.key]) > t.max) e[t.key] = 'Exceso de caracteres'
-  }
+  for (const t of TEXTOS) if (longitud(f[t.key]) > t.max) e[t.key] = 'Exceso de caracteres'
   for (const n of NIVELES) {
-    if (estaVacio(f[n.texto])) e[n.texto] = 'Completar información'
-    else if (longitud(f[n.texto]) > LIMITES.criterioTexto) e[n.texto] = 'Exceso de caracteres'
+    if (longitud(f[n.texto]) > LIMITES.criterioTexto) e[n.texto] = 'Exceso de caracteres'
     const p = f[n.puntaje].trim()
-    if (p === '') e[n.puntaje] = 'Completar información'
-    else if (!/^\d+(\.\d+)?$/.test(p)) e[n.puntaje] = 'Solo números (entero o decimal)'
+    if (p !== '' && !/^\d+(\.\d+)?$/.test(p)) e[n.puntaje] = 'Solo números (entero o decimal)'
   }
   return e
 }
@@ -81,6 +75,23 @@ function aCampos(f: Fila): CriterioCampos {
   }
 }
 
+type EstadoGuardado = 'idle' | 'guardando' | 'guardado' | 'error'
+
+/** One row of the editor: stable key for React and autosave, id once it exists in the database. */
+interface FilaEditor {
+  key: string
+  id: string | null
+  f: Fila
+}
+
+let contadorFilas = 0
+const nuevaClave = () => `fila-${Date.now()}-${++contadorFilas}`
+const filaVacia = (f: Fila) => Object.values(f).every(v => estaVacio(v))
+
+/**
+ * Rubric of one element: every criterion at once, saved automatically like the
+ * consignas (no Guardar/Cancelar). "Agregar criterio" opens it with a new row.
+ */
 export default function CriterioForm({ completa = false }: { completa?: boolean }) {
   const { cursoId, sesionId, criterioId } = useParams<{ cursoId: string; sesionId: string; criterioId?: string }>()
   const navigate = useNavigate()
@@ -89,22 +100,14 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
   const { user } = useAuth()
   const { ctx, proceso, rol, error, loading, recargar } = useContenidoAcademico(cursoId)
   const { puede } = usePuedeEditar(proceso, rol)
-  // Editing always shows the whole rubric: every criterion of the element at once.
-  const editando = completa || !!criterioId
+  const agregando = !completa && !criterioId
   const foco = criterioId ?? (location.state as { foco?: string } | null)?.foco ?? null
 
-  const [filas, setFilas] = useState<Fila[]>([{ ...VACIA }])
-  // Id of each row when editing (null = criterion added on this screen).
-  const [ids, setIds] = useState<Array<string | null>>([null])
-  const [originales, setOriginales] = useState<string[]>([])
+  const [filas, setFilas] = useState<FilaEditor[]>([])
   const [cargandoCriterio, setCargandoCriterio] = useState(true)
-  const [intento, setIntento] = useState(false)
-  const [sucio, setSucio] = useState(false)
-  const [confirmarCancelar, setConfirmarCancelar] = useState(false)
-  const [guardando, setGuardando] = useState(false)
-  const [avisos, setAvisos] = useState<string[] | null>(null)
-  // Criteria the element already has: new ones continue their numbering.
-  const [existentes, setExistentes] = useState<CriterioRow[]>([])
+  const [estado, setEstado] = useState<EstadoGuardado>('idle')
+  const [quitar, setQuitar] = useState<number | null>(null)
+  const [saliendo, setSaliendo] = useState(false)
   // Reviewers' comments, so the teacher can address them while editing.
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [filtro, setFiltro] = useState<FiltroComentarios | null>(null)
@@ -113,129 +116,178 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
   }
   useEffect(cargarComentarios, [cursoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Autosave ──
+  const filasRef = useRef(filas)
+  filasRef.current = filas
+  const idsRef = useRef(new Map<string, string>()) // key → id, updated at once (state lags a render)
+  const eliminadosRef = useRef<string[]>([])
+  const sucioRef = useRef(false)
+  const guardandoRef = useRef(false)
+  const pendienteRef = useRef(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const elemento = ctx?.elementos.find(e => e.sesionId === sesionId) ?? null
+
+  const flush = async (): Promise<void> => {
+    clearTimeout(timer.current)
+    if (!elemento || !user || !sucioRef.current) return
+    if (guardandoRef.current) {
+      pendienteRef.current = true
+      return
+    }
+    guardandoRef.current = true
+    sucioRef.current = false
+    setEstado('guardando')
+    try {
+      // Rows left completely empty are not saved yet.
+      const actuales = filasRef.current
+        .map(r => ({ ...r, id: r.id ?? idsRef.current.get(r.key) ?? null }))
+        .filter(r => r.id || !filaVacia(r.f))
+      const borrar = [...eliminadosRef.current]
+      const ids = await guardarRubricaCompleta(elemento, actuales.map(r => ({ id: r.id, campos: aCampos(r.f) })), borrar, user.correo)
+      eliminadosRef.current = eliminadosRef.current.filter(id => !borrar.includes(id))
+      actuales.forEach((r, i) => idsRef.current.set(r.key, ids[i]))
+      setFilas(prev => prev.map(r => (r.id ? r : idsRef.current.has(r.key) ? { ...r, id: idsRef.current.get(r.key)! } : r)))
+      setEstado('guardado')
+    } catch (err) {
+      sucioRef.current = true
+      setEstado('error')
+      toast(err instanceof Error ? `No se guardó: ${err.message}` : 'No se guardó.', 'error')
+    } finally {
+      guardandoRef.current = false
+      if (pendienteRef.current) {
+        pendienteRef.current = false
+        void flush()
+      }
+    }
+  }
+  const flushRef = useRef(flush)
+  flushRef.current = flush
+  const programar = () => {
+    sucioRef.current = true
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => void flushRef.current(), 1200)
+  }
+  // Leaving the screen any other way still saves the last change.
+  useEffect(() => () => void flushRef.current(), [])
+
   useEffect(() => {
-    document.title = `${editando ? 'Editar rúbrica' : 'Agregar criterio'} — Diseña+`
+    document.title = 'Rúbrica del elemento — Diseña+'
     if (!sesionId) return
     getCriteriosDeElemento(sesionId)
       .then(lista => {
-        setExistentes(lista)
-        if (!editando || lista.length === 0) return
-        setFilas(
-          lista.map(c => {
-            const f = { ...VACIA }
-            for (const k of Object.keys(VACIA) as Array<keyof CriterioCampos>) {
-              const v = c[k]
-              f[k] = v === null || v === undefined ? '' : String(v)
-            }
-            return f
-          }),
-        )
-        setIds(lista.map(c => c.dpl_rubricacriterioid))
-        setOriginales(lista.map(c => c.dpl_rubricacriterioid))
+        const cargadas: FilaEditor[] = lista.map(c => {
+          const f = { ...VACIA }
+          for (const k of Object.keys(VACIA) as Array<keyof CriterioCampos>) {
+            const v = c[k]
+            f[k] = v === null || v === undefined ? '' : String(v)
+          }
+          return { key: nuevaClave(), id: c.dpl_rubricacriterioid, f }
+        })
+        if (agregando || cargadas.length === 0) cargadas.push({ key: nuevaClave(), id: null, f: { ...VACIA } })
+        setFilas(cargadas)
       })
       .catch(err => toast(err instanceof Error ? err.message : 'No se pudo cargar la rúbrica.', 'error'))
       .finally(() => setCargandoCriterio(false))
-  }, [sesionId, editando, toast])
+  }, [sesionId, agregando, toast])
 
-  // Coming from "⋮ → Editar" of one criterion: scroll to it.
+  // "⋮ → Editar" of one criterion scrolls to it; "Agregar criterio" to the new row.
   useEffect(() => {
-    if (cargandoCriterio || !foco) return
-    const t = setTimeout(() => document.getElementById(`fila-${foco}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+    if (cargandoCriterio) return
+    const destino = foco ? document.getElementById(`fila-${foco}`) : agregando ? document.getElementById('fila-ultima') : null
+    const t = setTimeout(() => destino?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
     return () => clearTimeout(t)
-  }, [cargandoCriterio, foco])
+  }, [cargandoCriterio, foco, agregando])
 
   if (loading || cargandoCriterio) return <Cargando texto="Cargando" />
   if (error || !ctx || !proceso) return <ErrorPanel mensaje={error ?? 'Curso no encontrado.'} onRetry={recargar} />
-  const elemento = ctx.elementos.find(e => e.sesionId === sesionId)
   if (!elemento) return <ErrorPanel mensaje="El elemento no existe en este curso." />
   if (!puede) return <Navigate to={`/cursos/${ctx.id}/rubricas`} replace />
 
-  const volver = `/cursos/${ctx.id}/rubricas`
-  const errores = filas.map(erroresFila)
-  const hayErrores = errores.some(e => Object.keys(e).length > 0)
-  const eliminados = originales.filter(id => !ids.includes(id))
+  const rutaVolver = `/cursos/${ctx.id}/rubricas`
+  const volver = async () => {
+    setSaliendo(true)
+    // Wait for the save in progress and the last pending change.
+    for (let k = 0; k < 40 && (guardandoRef.current || sucioRef.current || pendienteRef.current); k++) {
+      if (!guardandoRef.current) await flush()
+      else await new Promise(r => setTimeout(r, 150))
+    }
+    setSaliendo(false)
+    if (sucioRef.current) return toast('Hay cambios que no se pudieron guardar. Revisa tu conexión e inténtalo de nuevo.', 'error')
+    navigate(rutaVolver, { state: { abrir: foco ?? undefined } })
+  }
 
   const setCampo = (i: number, key: keyof CriterioCampos, v: string) => {
-    setSucio(true)
-    setFilas(prev => prev.map((f, j) => (j === i ? { ...f, [key]: v } : f)))
+    setFilas(prev => prev.map((r, j) => (j === i ? { ...r, f: { ...r.f, [key]: v } } : r)))
+    programar()
   }
-  const agregarFila = () => {
-    setSucio(true)
-    setFilas(prev => [...prev, { ...VACIA }])
-    setIds(prev => [...prev, null])
+  const agregarFila = () => setFilas(prev => [...prev, { key: nuevaClave(), id: null, f: { ...VACIA } }])
+  const pedirQuitar = (i: number) => {
+    const r = filas[i]
+    if (!(r.id ?? idsRef.current.get(r.key)) && filaVacia(r.f)) return quitarFila(i)
+    setQuitar(i)
   }
   const quitarFila = (i: number) => {
-    setSucio(true)
-    setFilas(prev => prev.filter((_, j) => j !== i))
-    setIds(prev => prev.filter((_, j) => j !== i))
-  }
-
-  // Rules of the whole rubric after saving (existing criteria + the new ones when adding).
-  const rubricaResultante = editando ? filas : [...existentes, ...filas]
-  const pedirGuardar = () => {
-    setIntento(true)
-    if (hayErrores) return
-    const a = advertenciasRubrica(rubricaResultante)
-    if (a.length) setAvisos(a)
-    else guardar()
-  }
-
-  const guardar = async () => {
-    setAvisos(null)
-    setIntento(true)
-    if (hayErrores || !user) return
-    setGuardando(true)
-    try {
-      if (editando) {
-        await guardarRubricaCompleta(elemento, filas.map((f, i) => ({ id: ids[i], campos: aCampos(f) })), eliminados, user.correo)
-        navigate(volver, { state: { toast: 'Se guardó la rúbrica con éxito', abrir: foco ?? undefined } })
-      } else {
-        const primero = await crearCriterios(elemento, filas.map(aCampos), user.correo)
-        navigate(volver, { state: { toast: filas.length > 1 ? 'Se agregaron los criterios con éxito' : 'Se agregó el criterio con éxito', abrir: primero } })
-      }
-    } catch (err) {
-      setGuardando(false)
-      toast(err instanceof Error ? `Error al guardar: ${err.message}` : 'Error al guardar.', 'error')
+    setQuitar(null)
+    const r = filas[i]
+    const id = r.id ?? idsRef.current.get(r.key)
+    const resto = filas.filter((_, j) => j !== i)
+    const nuevas = resto.length ? resto : [{ key: nuevaClave(), id: null, f: { ...VACIA } }]
+    filasRef.current = nuevas
+    setFilas(nuevas)
+    if (id) {
+      eliminadosRef.current.push(id)
+      sucioRef.current = true
+      void flush()
     }
   }
 
-  const titulo = editando ? 'Editar rúbrica' : 'Agregar criterio'
+  const idDe = (r: FilaEditor) => r.id ?? idsRef.current.get(r.key) ?? null
+  const criterioQuitar = quitar !== null ? filas[quitar] : null
+
   return (
     <div className="page" style={{ paddingBottom: 90 }}>
       <Breadcrumbs
         items={[
           { label: 'Cursos', to: '/cursos' },
           { label: ctx.nombre, to: `/cursos/${ctx.id}` },
-          { label: 'Rúbrica', to: volver },
-          { label: titulo },
+          { label: 'Rúbrica', to: rutaVolver },
+          { label: elemento.nombre },
         ]}
       />
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>{titulo}</h1>
+      <div className="row-between" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 700 }}>Rúbrica del elemento</h1>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <IndicadorGuardado estado={estado} />
+          <button className="btn btn-outline" style={{ height: 40 }} onClick={volver} disabled={saliendo}>
+            <Icon name="chevronLeft" size={16} strokeWidth={2} />Volver a la rúbrica
+          </button>
+        </span>
+      </div>
       <CursoHeader titulo={elemento.nombre} curso={ctx.nombre} tipoEnsenanza={ctx.tipoEnsenanza} programas={ctx.programas} />
 
-      <ResumenRubrica
-        criterios={rubricaResultante}
-        eliminados={eliminados.length}
-        nota={!editando && existentes.length > 0 ? `Este elemento ya tiene ${existentes.length} ${existentes.length === 1 ? 'criterio' : 'criterios'}; los nuevos se agregan desde el N°${existentes.length + 1}.` : null}
-      />
+      <ResumenRubrica criterios={filas.map(r => r.f)} eliminados={0} nota="Los cambios se guardan automáticamente." />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {filas.map((f, i) => (
-          <div key={ids[i] ?? `nueva-${i}`} id={ids[i] ? `fila-${ids[i]}` : undefined} style={{ scrollMarginTop: 16 }}>
-            <FilaCriterio
-              numero={editando ? i + 1 : existentes.length + i + 1}
-              fila={f}
-              errores={intento ? errores[i] : {}}
-              onChange={(k, v) => setCampo(i, k, v)}
-              onEliminar={filas.length > 1 ? () => quitarFila(i) : undefined}
-              pendientes={ids[i] ? comentarios.filter(k => !k.padreId && !k.resuelto && k.entidadId === ids[i]).length : 0}
-              onComentarios={() => ids[i] && setFiltro({ entidadId: ids[i]! })}
-            />
-          </div>
-        ))}
+        {filas.map((r, i) => {
+          const id = idDe(r)
+          return (
+            <div key={r.key} id={i === filas.length - 1 ? 'fila-ultima' : id ? `fila-${id}` : undefined} style={{ scrollMarginTop: 150 }}>
+              {id && i === filas.length - 1 && <span id={`fila-${id}`} />}
+              <FilaCriterio
+                numero={i + 1}
+                fila={r.f}
+                errores={erroresFila(r.f)}
+                onChange={(k, v) => setCampo(i, k, v)}
+                onEliminar={() => pedirQuitar(i)}
+                pendientes={id ? comentarios.filter(k => !k.padreId && !k.resuelto && k.entidadId === id).length : 0}
+                onComentarios={() => id && setFiltro({ entidadId: id })}
+              />
+            </div>
+          )
+        })}
       </div>
 
-      {(editando ? filas.length : existentes.length + filas.length) < REGLAS_RUBRICA.maxCriterios ? (
+      {filas.length < REGLAS_RUBRICA.maxCriterios ? (
         <button className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 14, padding: '8px 10px' }} onClick={agregarFila}>
           <Icon name="plus" size={18} strokeWidth={2} />Agregar otro criterio
         </button>
@@ -244,31 +296,34 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
       )}
 
       <div className="form-footer">
-        <button className="btn btn-outline" style={{ height: 44, padding: '0 24px' }} onClick={() => (sucio ? setConfirmarCancelar(true) : navigate(volver))}>
-          Cancelar
-        </button>
-        <button className="btn btn-primary" style={{ height: 44, padding: '0 28px' }} onClick={pedirGuardar}>
-          {editando ? 'Guardar rúbrica' : 'Guardar'}
+        <IndicadorGuardado estado={estado} />
+        <button className="btn btn-primary" style={{ height: 44, padding: '0 24px' }} onClick={volver} disabled={saliendo}>
+          {saliendo ? 'Guardando…' : 'Volver a la rúbrica'}
         </button>
       </div>
 
       <Modal
-        open={confirmarCancelar}
-        title={editando ? '¿Cancelar edición de la rúbrica?' : '¿Cancelar creación de criterios?'}
-        onClose={() => setConfirmarCancelar(false)}
+        open={!!criterioQuitar}
+        title="¿Eliminar criterio?"
+        onClose={() => setQuitar(null)}
         actions={
           <>
-            <button className="btn btn-outline" onClick={() => setConfirmarCancelar(false)}>No, continuar</button>
-            <button className="btn btn-primary" onClick={() => navigate(volver)}>Sí, cancelar</button>
+            <button className="btn btn-outline" onClick={() => setQuitar(null)}>No, cancelar</button>
+            <button className="btn btn-primary" onClick={() => quitar !== null && quitarFila(quitar)}>Sí, eliminar</button>
           </>
         }
       >
-        {editando ? 'No se guardará ningún cambio de la rúbrica.' : undefined}
+        {criterioQuitar && (
+          <>
+            Se eliminará el criterio <b>N°{(quitar ?? 0) + 1} · {criterioQuitar.f.dpl_criterio.trim() || 'Sin nombre'}</b>
+            {criterioQuitar.f.dpl_puntajeestandar ? ` (${criterioQuitar.f.dpl_puntajeestandar} pt en estándar esperado)` : ''}. Los demás se volverán a numerar.
+          </>
+        )}
       </Modal>
       <PanelComentarios
         filtro={filtro}
         onClose={() => setFiltro(null)}
-        titulo={`Comentarios: Criterio N°${filtro?.entidadId ? ids.indexOf(filtro.entidadId) + 1 : ''}`}
+        titulo={`Comentarios: Criterio N°${filtro?.entidadId ? filas.findIndex(r => idDe(r) === filtro.entidadId) + 1 : ''}`}
         cursoId={ctx.id}
         instrumento="rubricas"
         comentarios={comentarios}
@@ -277,10 +332,10 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
           campo === 'dpl_criterio' ? 'Nombre del criterio' : campo === 'dpl_definicioncriterio' ? 'Descripción del criterio' : campo === CAMPO_GENERAL ? 'General' : NIVELES.find(n => n.texto === campo)?.label ?? campo
         }
         valorItem={(id, campo) => {
-          const f = filas[ids.indexOf(id)]
-          if (!f || campo === CAMPO_GENERAL) return null
+          const r = filas.find(x => idDe(x) === id)
+          if (!r || campo === CAMPO_GENERAL) return null
           const n = NIVELES.find(k => k.texto === campo)
-          return `${f[campo as keyof CriterioCampos] ?? ''}${n ? ` ${f[n.puntaje]}` : ''}`
+          return `${r.f[campo as keyof CriterioCampos] ?? ''}${n ? ` ${r.f[n.puntaje]}` : ''}`
         }}
         puedeComentar={false}
         puedeResponder
@@ -288,24 +343,18 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
         lado={rol.lado}
         etiquetaRol={rol.etiqueta}
       />
-      <Modal
-        open={!!avisos}
-        title="La rúbrica aún no cumple todas las reglas"
-        onClose={() => setAvisos(null)}
-        actions={
-          <>
-            <button className="btn btn-outline" onClick={() => setAvisos(null)}>Seguir editando</button>
-            <button className="btn btn-primary" onClick={guardar}>Guardar de todos modos</button>
-          </>
-        }
-      >
-        <ul style={{ margin: '0 0 10px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {avisos?.map(a => <li key={a}>{a}</li>)}
-        </ul>
-        Puedes guardar y seguir después, pero para «Finalizar edición general» el estándar esperado de cada elemento debe sumar {PUNTAJE_OBJETIVO} pt.
-      </Modal>
-      <SavingOverlay show={guardando} />
     </div>
+  )
+}
+
+function IndicadorGuardado({ estado }: { estado: EstadoGuardado }) {
+  if (estado === 'idle') return null
+  return (
+    <span style={{ fontSize: 13, color: estado === 'error' ? 'var(--color-danger)' : 'var(--color-text-muted)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      {estado === 'guardando' && <>Guardando información <span className="spinner" style={{ display: 'flex' }}><Icon name="spinner" size={14} strokeWidth={2.4} /></span></>}
+      {estado === 'guardado' && <><Icon name="check" size={14} strokeWidth={2.4} />Cambios guardados</>}
+      {estado === 'error' && <><Icon name="alert" size={14} />No se guardó</>}
+    </span>
   )
 }
 
