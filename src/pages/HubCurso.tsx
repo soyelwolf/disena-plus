@@ -33,7 +33,7 @@ interface Tarjeta {
 
 export default function HubCurso() {
   const { cursoId } = useParams<{ cursoId: string }>()
-  const { ctx, proceso, error, loading, recargar } = useContenidoAcademico(cursoId)
+  const { ctx, proceso, rol, error, loading, recargar } = useContenidoAcademico(cursoId)
   const [rubricas, setRubricas] = useState<RubricasCurso | null>(null)
   const [verFlujo, setVerFlujo] = useState(false)
   const [verAsignar, setVerAsignar] = useState(false)
@@ -42,7 +42,7 @@ export default function HubCurso() {
   const [activacion, setActivacion] = useState<Record<ProcesoActivable, EstadoActivacion> | null>(null)
   const [confirmar, setConfirmar] = useState<Tarjeta | null>(null)
   const [activando, setActivando] = useState(false)
-  const puedeActivar = can('editar_contenido') || can('administrar_datos')
+  const puedeActivar = rol.editar || rol.admin
 
   useEffect(() => {
     document.title = ctx ? `${ctx.nombre} — Diseña+` : 'Curso — Diseña+'
@@ -235,7 +235,7 @@ export default function HubCurso() {
           await recargar()
         }}
       />
-      <Aprobaciones open={verFlujo} onClose={() => setVerFlujo(false)} cursoId={ctx.id} proceso={proceso} onCambio={recargar} />
+      <Aprobaciones open={verFlujo} onClose={() => setVerFlujo(false)} cursoId={ctx.id} proceso={proceso} rol={rol} onCambio={recargar} />
     </div>
   )
 }

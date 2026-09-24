@@ -4,12 +4,11 @@
 // author marks it resolved. Badge: + (none) · 1 / 2 (sides with open comments) · ✓.
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ROLE_LABELS, useAuth, type UserRole } from '../shared/AuthContext'
+import { useAuth } from '../shared/AuthContext'
 import {
   CAMPO_GENERAL,
   agregarComentario,
   estadoComentarios,
-  ladoDeUsuario,
   resolverComentario,
   type Comentario,
   type EstadoComentarios,
@@ -193,6 +192,11 @@ interface PanelProps {
   puedeComentar: boolean
   /** Approvers and the teaching team: reply in threads. */
   puedeResponder: boolean
+  /** Monitor EA / DDA of the course: resolve the comments they wrote. */
+  puedeResolver: boolean
+  /** Side and label of the person in this course (from LISTADO_CURSOS_PARA_IA). */
+  lado: LadoComentario | null
+  etiquetaRol: string
   onIrItem?: (entidadId: string, campo: string) => void
 }
 
@@ -230,11 +234,8 @@ export function PanelComentarios(props: PanelProps) {
   const abiertas = raices.filter(c => !c.resuelto)
   const resueltas = raices.filter(c => c.resuelto)
   const visibles = verResueltos ? [...abiertas, ...resueltas] : abiertas
-  const lado = ladoDeUsuario(user.roles)
-  const rolLabel = (): string => {
-    const r = user.roles.find(x => (lado === 'docente' ? x === 'docente' || x === 'asesor' : lado === 'dda' ? x === 'dda' : x.startsWith('monitor')))
-    return r ? ROLE_LABELS[r as UserRole] : LADO_LABEL[lado]
-  }
+  const lado = props.lado ?? 'docente'
+  const rolLabel = () => props.etiquetaRol || LADO_LABEL[lado]
 
   const enviar = async (params: { entidadId: string; campo: string; padreId?: string; texto: string; cita?: string | null }) => {
     setEnviando(true)
@@ -320,7 +321,7 @@ export function PanelComentarios(props: PanelProps) {
                   raiz={c}
                   respuestas={comentarios.filter(r => r.padreId === c.id)}
                   valorActual={valorItem(c.entidadId, c.campo)}
-                  esAutor={c.correo ? c.correo.toLowerCase() === user.correo.toLowerCase() : c.autor === user.nombre}
+                  esAutor={props.puedeResolver && (c.correo ? c.correo.toLowerCase() === user.correo.toLowerCase() : c.autor === user.nombre)}
                   puedeResponder={puedeResponder}
                   enviando={enviando}
                   onResponder={t => enviar({ entidadId: c.entidadId, campo: c.campo, padreId: c.id, texto: t })}

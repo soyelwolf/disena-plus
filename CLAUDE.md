@@ -107,9 +107,11 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
   pendientes) / ✓. Componente `Comentarios.tsx` (BotonComentarios, ZonaComentable, PanelComentarios).
 - Activación (como los flujos CONSOLIDADO_INPUTS_* de Power Automate): el admin habilita procesos por curso (`Permite_*`); el docente pulsa **ACTIVAR** una sola vez por proceso (Consignas primero). Consignas crea una consigna por elemento; cada instrumento crea su cabecera por elemento cuya consigna lo eligió (Rúbrica = `rúbrica` + `matriz con rúbrica`). Estado ACTIVADO = columnas `dpl_ia_*_corrido`. Lógica en `activarProceso` (`academico.ts`).
 - Visibilidad: "Mis cursos" muestra solo los cursos asignados (también al admin, que puede marcar "Ver todos").
-- Roles: administrador, docente, asesor, monitor_ea, monitor_qa, monitor_disena, dda (se pueden
-  sumar más). Las pantallas revisan **permisos** (`editar_contenido`, `aprobar_proceso`,
-  `administrar_datos`, `ver_todo`), no nombres de rol.
+- Roles: **manda el rol en cada curso** (columnas de personas de LISTADO_CURSOS_PARA_IA =
+  `dpl_cursoasignacion`): la misma persona puede ser Monitor EA en un curso y DDA o asesor en otro.
+  `useContenidoAcademico` devuelve `rol` (editar = asignado/docente, monitor, dda, admin). La lista
+  **Usuarios** (`dpl_usuario.roles`) solo sirve para poder entrar y para **Administrador** (Centro de
+  datos, ver todos los cursos, asignar procesos); el admin sin rol en el curso solo ve.
 - IA: botones visibles pero **sin generar** hasta definir el flujo. En Power Automate era: flujo 1
   junta datos del curso y los reparte por elemento → flujo 2 llama a OpenAI por elemento con el
   prompt según tipo (Matriz y Escala tienen 2 prompts cada una).

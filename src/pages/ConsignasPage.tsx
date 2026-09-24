@@ -47,10 +47,10 @@ type EstadoGuardado = 'idle' | 'guardando' | 'guardado' | 'error'
 
 export default function ConsignasPage() {
   const { cursoId } = useParams<{ cursoId: string }>()
-  const { user, can } = useAuth()
+  const { user } = useAuth()
   const toast = useToast()
-  const { ctx, setCtx, proceso, error, loading, recargar } = useContenidoAcademico(cursoId)
-  const { puede, motivo } = usePuedeEditar(proceso, 'consignas')
+  const { ctx, setCtx, proceso, rol, error, loading, recargar } = useContenidoAcademico(cursoId)
+  const { puede, motivo } = usePuedeEditar(proceso, rol)
 
   const [seleccion, setSeleccion] = useState<string | null>(null)
   const [mostrarErrores, setMostrarErrores] = useState(false)
@@ -155,12 +155,12 @@ export default function ConsignasPage() {
   const completos = ctx.elementos.filter(e => validaciones.get(e.sesionId)?.completa).length
   const todoCompleto = ctx.elementos.length > 0 && completos === ctx.elementos.length
   const el = ctx.elementos.find(e => e.sesionId === seleccion) ?? null
-  const esMonitor = !!user?.roles.includes('monitor_ea')
+  const esMonitor = rol.monitor
   const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado === 'revision_dda' || proceso.estado === 'aprobado')
-  // Approvers open comments at any moment (it never blocks the process);
-  // the teaching team replies so they know it was addressed.
-  const puedeComentar = can('aprobar_proceso') && proceso.estado !== 'aprobado'
-  const puedeResponder = can('aprobar_proceso') || can('editar_contenido')
+  // Everything depends on the person's role in THIS course (LISTADO_CURSOS_PARA_IA):
+  // Monitor EA / DDA open and resolve comments; the teaching team replies; all can read.
+  const puedeComentar = (rol.monitor || rol.dda) && proceso.estado !== 'aprobado'
+  const puedeResponder = rol.monitor || rol.dda || rol.editar
   const campoLabel = (campo: string) =>
     campo === 'dpl_instrumento' ? 'Instrumento' : campo === 'adjuntos' ? 'Datos adjuntos' : campo === CAMPO_GENERAL ? 'General' : CAMPOS_CONSIGNA.find(c => c.key === campo)?.label.replace(' (Opcional)', '') ?? campo
   const elDeConsigna = (id: string) => ctx.elementos.find(e => e.consigna?.dpl_consignaid === id)
@@ -386,6 +386,9 @@ export default function ConsignasPage() {
         }}
         puedeComentar={puedeComentar}
         puedeResponder={puedeResponder}
+        puedeResolver={rol.monitor || rol.dda}
+        lado={rol.lado}
+        etiquetaRol={rol.etiqueta}
         onIrItem={irItem}
       />
     </div>

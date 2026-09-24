@@ -37,9 +37,9 @@ export default function RubricasPage() {
   const location = useLocation()
   const navigate = useNavigate()
   const toast = useToast()
-  const { user, can } = useAuth()
-  const { ctx, proceso, error, loading, recargar } = useContenidoAcademico(cursoId)
-  const { puede, motivo } = usePuedeEditar(proceso, 'rubricas')
+  const { user } = useAuth()
+  const { ctx, proceso, rol, error, loading, recargar } = useContenidoAcademico(cursoId)
+  const { puede, motivo } = usePuedeEditar(proceso, rol)
 
   const [datos, setDatos] = useState<RubricasCurso | null>(null)
   const [errorDatos, setErrorDatos] = useState<string | null>(null)
@@ -119,11 +119,12 @@ export default function RubricasPage() {
 
   const problemas = datos.elementos.map(problemaElemento)
   const todoCompleto = datos.elementos.length > 0 && problemas.every(p => p === null)
-  const esMonitor = !!user?.roles.includes('monitor_ea')
+  const esMonitor = rol.monitor
   const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado === 'revision_dda' || proceso.estado === 'aprobado')
-  // Approvers comment at any moment (it never blocks); the teaching team replies.
-  const puedeComentar = can('aprobar_proceso') && proceso.estado !== 'aprobado'
-  const puedeResponder = can('aprobar_proceso') || can('editar_contenido')
+  // Everything depends on the person's role in THIS course (LISTADO_CURSOS_PARA_IA):
+  // Monitor EA / DDA open and resolve comments; the teaching team replies; all can read.
+  const puedeComentar = (rol.monitor || rol.dda) && proceso.estado !== 'aprobado'
+  const puedeResponder = rol.monitor || rol.dda || rol.editar
   const pendientesRubrica = comentarios.filter(k => !k.padreId && !k.resuelto).length
   const buscarCriterio = (id: string) => {
     for (const r of datos.elementos) {
@@ -450,6 +451,9 @@ export default function RubricasPage() {
         }}
         puedeComentar={puedeComentar}
         puedeResponder={puedeResponder}
+        puedeResolver={rol.monitor || rol.dda}
+        lado={rol.lado}
+        etiquetaRol={rol.etiqueta}
         onIrItem={irItem}
       />
       <SavingOverlay show={trabajando} />

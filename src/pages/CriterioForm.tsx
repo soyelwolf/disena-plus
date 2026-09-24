@@ -79,8 +79,8 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
   const location = useLocation()
   const toast = useToast()
   const { user } = useAuth()
-  const { ctx, proceso, error, loading, recargar } = useContenidoAcademico(cursoId)
-  const { puede } = usePuedeEditar(proceso, 'rubricas')
+  const { ctx, proceso, rol, error, loading, recargar } = useContenidoAcademico(cursoId)
+  const { puede } = usePuedeEditar(proceso, rol)
   // Editing always shows the whole rubric: every criterion of the element at once.
   const editando = completa || !!criterioId
   const foco = criterioId ?? (location.state as { foco?: string } | null)?.foco ?? null
@@ -260,6 +260,9 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
         }}
         puedeComentar={false}
         puedeResponder
+        puedeResolver={rol.monitor || rol.dda}
+        lado={rol.lado}
+        etiquetaRol={rol.etiqueta}
       />
       <SavingOverlay show={guardando} />
     </div>

@@ -797,13 +797,6 @@ export function estadoComentarios(comentarios: Comentario[], entidadId: string, 
   }
 }
 
-/** Side the signed-in person speaks for. */
-export function ladoDeUsuario(roles: string[]): LadoComentario {
-  if (roles.includes('dda') && !roles.includes('monitor_ea')) return 'dda'
-  if (roles.some(r => r === 'monitor_ea' || r === 'monitor_qa' || r === 'monitor_disena')) return 'monitor_ea'
-  if (roles.includes('dda')) return 'dda'
-  return 'docente'
-}
 
 /** "hace 3 días" style relative time. */
 export function haceCuanto(iso: string): string {
@@ -846,6 +839,14 @@ export async function buscarUsuario(correo: string): Promise<{ tabla: boolean; u
 }
 
 /** Course ids assigned to a user (any role). */
+/** Roles of a person in one course (asignado, docente, monitor_ea, dda). */
+export async function getRolesEnCurso(usuarioId: string, cursoId: string): Promise<string[]> {
+  const { data, error } = await supabase.from('dpl_cursoasignacion').select('dpl_rol').eq('dpl_usuarioid', usuarioId).eq('dpl_cursoid', cursoId)
+  if (isMissingTable(error)) return []
+  fail(error, 'No se pudo cargar tu rol en el curso.')
+  return [...new Set((data ?? []).map(r => r.dpl_rol as string))]
+}
+
 export async function getCursosAsignados(usuarioId: string): Promise<Set<string>> {
   const { data, error } = await supabase.from('dpl_cursoasignacion').select('dpl_cursoid').eq('dpl_usuarioid', usuarioId)
   if (isMissingTable(error)) return new Set()

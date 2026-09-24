@@ -1,6 +1,7 @@
 // "Aprobaciones" side panel: who approved what and when (Monitor EA → DDA),
 // plus the approvers' actions for the current state.
 
+import type { RolCurso } from '../shared/hooks/useContenidoAcademico'
 import { useState } from 'react'
 import { useAuth } from '../shared/AuthContext'
 import {
@@ -19,6 +20,7 @@ interface Props {
   onClose: () => void
   cursoId: string
   proceso: ProcesoCurso
+  rol: RolCurso
   onCambio: () => void
 }
 
@@ -35,14 +37,14 @@ function aprobacionVigente(eventos: EventoProceso[], rol: string): EventoProceso
   return ultima
 }
 
-export default function Aprobaciones({ open, onClose, cursoId, proceso, onCambio }: Props) {
+export default function Aprobaciones({ open, onClose, cursoId, proceso, rol, onCambio }: Props) {
   const { user } = useAuth()
   const toast = useToast()
   const [comentario, setComentario] = useState('')
   const [trabajando, setTrabajando] = useState(false)
-  const roles = user?.roles ?? []
-  const esMonitor = roles.includes('monitor_ea')
-  const esDda = roles.includes('dda')
+  // Monitor EA / DDA of THIS course (LISTADO_CURSOS_PARA_IA), not the global roles.
+  const esMonitor = rol.monitor
+  const esDda = rol.dda
 
   const monitor = aprobacionVigente(proceso.eventos, 'monitor_ea')
   const dda = aprobacionVigente(proceso.eventos, 'dda')
