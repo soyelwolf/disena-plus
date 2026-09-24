@@ -5,6 +5,8 @@ import { MOCK_CURSO } from '../shared/mockData'
 import Icon from '../components/Icon'
 import { useAuth } from '../shared/AuthContext'
 import { getCursosAsignados } from '../shared/academico'
+import { DOCUMENTOS, listarDocumentos, nombreDescarga, type DocumentoCurso, type TipoDocumento } from '../shared/documentosCurso'
+import VisorPdf from '../components/VisorPdf'
 import type { Curso } from '../types/curso'
 
 const normalizar = (s: string) =>
@@ -33,6 +35,11 @@ export default function ListadoCursos() {
   }, [user?.usuarioId])
   const [busqueda, setBusqueda] = useState('')
   const [tipo, setTipo] = useState('')
+  const [docs, setDocs] = useState<Map<string, DocumentoCurso>>(new Map())
+  const [visor, setVisor] = useState<{ doc: DocumentoCurso; curso: string } | null>(null)
+  useEffect(() => {
+    listarDocumentos().then(setDocs).catch(() => setDocs(new Map()))
+  }, [])
 
   useEffect(() => {
     document.title = 'Cursos — Diseña+'
@@ -148,6 +155,7 @@ export default function ListadoCursos() {
                   <th>Curso</th>
                   <th style={{ width: 280 }}>Enseñanza</th>
                   <th className="icon-cell">Sílabo</th>
+                  <th className="icon-cell" style={{ width: 150 }}>Formato de orientación</th>
                   <th className="icon-cell">Ingresar</th>
                 </tr>
               </thead>
@@ -163,18 +171,26 @@ export default function ListadoCursos() {
                       <div style={{ fontSize: 13, color: '#3d434a' }}>{c.codigoCatalogo}</div>
                     </td>
                     <td>{c.tipoEnsenanza}</td>
-                    <td className="icon-cell">
-                      {/* The sílabo PDF upload lives in the Centro de datos (next step). */}
-                      <button
-                        className="icon-btn"
-                        disabled
-                        title="Sílabo aún no cargado"
-                        aria-label={`Ver sílabo de ${c.nombre} (aún no cargado)`}
-                        onClick={e => e.stopPropagation()}
-                      >
-                        <Icon name="eye" size={22} />
-                      </button>
-                    </td>
+                    {(['silabo', 'formato'] as TipoDocumento[]).map(t => {
+                      const doc = docs.get(`${c.id}|${t}`)
+                      const nombre = DOCUMENTOS[t].label.toLowerCase()
+                      return (
+                        <td key={t} className="icon-cell">
+                          <button
+                            className="icon-btn"
+                            disabled={!doc}
+                            title={doc ? `Ver ${nombre}` : `${DOCUMENTOS[t].label} aún no cargado`}
+                            aria-label={doc ? `Ver ${nombre} de ${c.nombre}` : `${DOCUMENTOS[t].label} de ${c.nombre} aún no cargado`}
+                            onClick={e => {
+                              e.stopPropagation()
+                              if (doc) setVisor({ doc, curso: capitalizar(c.nombre) })
+                            }}
+                          >
+                            <Icon name="eye" size={22} />
+                          </button>
+                        </td>
+                      )
+                    })}
                     <td className="icon-cell">
                       <button
                         className="icon-btn go"
@@ -191,6 +207,14 @@ export default function ListadoCursos() {
                 ))}
               </tbody>
             </table>
+          )}
+          {visor && (
+            <VisorPdf
+              titulo={`${DOCUMENTOS[visor.doc.tipo].label} · ${visor.curso}`}
+              url={visor.doc.url}
+              nombreArchivo={nombreDescarga(visor.doc.tipo, visor.curso)}
+              onClose={() => setVisor(null)}
+            />
           )}
         </>
       )}

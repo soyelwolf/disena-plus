@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Icon from '../components/Icon'
 import TextoEnriquecido from '../components/TextoEnriquecido'
+import VisorPdf from '../components/VisorPdf'
+import {
+  DOCUMENTOS,
+  listarDocumentos,
+  nombreDescarga,
+  quitarDocumento,
+  subirDocumento,
+  type DocumentoCurso,
+  type TipoDocumento,
+} from '../shared/documentosCurso'
 import { esHtml, textoPlano } from '../shared/textoRico'
 import { Cargando, Drawer, ErrorPanel, Modal, useToast } from '../components/ui'
 import { ROLE_LABELS, type UserRole } from '../shared/AuthContext'
@@ -551,10 +561,39 @@ function ListadoCursosEditor({ cfg }: { cfg: TablaConfig }) {
   }, [])
   useEffect(cargar, [cargar])
 
+  // Course PDFs (sílabo, formato de orientación) — like "Documentos" / "Previsualizar_Formato" in SharePoint.
+  const [docs, setDocs] = useState<Map<string, DocumentoCurso>>(new Map())
+  const [visor, setVisor] = useState<{ doc: DocumentoCurso; curso: string } | null>(null)
+  const cargarDocs = useCallback(() => {
+    listarDocumentos().then(setDocs).catch(() => setDocs(new Map()))
+  }, [])
+  useEffect(cargarDocs, [cargarDocs])
+
+  const columnasDocs: ColumnaExtra[] = useMemo(
+    () =>
+      (Object.keys(DOCUMENTOS) as TipoDocumento[]).map((tipo, i) => ({
+        key: `__doc_${tipo}`,
+        label: `${DOCUMENTOS[tipo].label} (PDF)`,
+        despuesDe: i === 0 ? (datos?.tabla ? '__persona_dda' : 'dpl_permiteescala') : '__doc_silabo',
+        texto: (f: Record<string, unknown>) => (docs.has(`${f[cfg.pk]}|${tipo}`) ? 'Sí' : 'No'),
+        render: (f: Record<string, unknown>) => (
+          <DocumentoCelda
+            cursoId={f[cfg.pk] as string}
+            curso={capitalizar(String(f.dpl_nombrecurso ?? ''))}
+            tipo={tipo}
+            doc={docs.get(`${f[cfg.pk]}|${tipo}`)}
+            onVer={doc => setVisor({ doc, curso: capitalizar(String(f.dpl_nombrecurso ?? '')) })}
+            onCambio={cargarDocs}
+          />
+        ),
+      })),
+    [docs, datos?.tabla, cfg.pk, cargarDocs],
+  )
+
   const extras: ColumnaExtra[] = useMemo(() => {
-    if (!datos?.tabla) return []
+    if (!datos?.tabla) return columnasDocs
     const nombre = new Map(datos.usuarios.map(u => [u.id, u.nombre]))
-    return COLUMNAS_PERSONAS.map((col, i) => {
+    return [...COLUMNAS_PERSONAS.map((col, i) => {
       const personas = (f: Record<string, unknown>) =>
         datos.asignaciones.filter(a => a.cursoId === f[cfg.pk] && a.rol === col.rol).map(a => nombre.get(a.usuarioId) ?? '¿?')
       return {
@@ -572,8 +611,8 @@ function ListadoCursosEditor({ cfg }: { cfg: TablaConfig }) {
           </button>
         ),
       }
-    })
-  }, [datos, cfg.pk])
+    }), ...columnasDocs]
+  }, [datos, cfg.pk, columnasDocs])
 
   return (
     <>
@@ -584,6 +623,14 @@ function ListadoCursosEditor({ cfg }: { cfg: TablaConfig }) {
         </div>
       )}
       <TablaEditor cfg={cfg} extras={extras} />
+      {visor && (
+        <VisorPdf
+          titulo={`${DOCUMENTOS[visor.doc.tipo].label} · ${visor.curso}`}
+          url={visor.doc.url}
+          nombreArchivo={nombreDescarga(visor.doc.tipo, visor.curso)}
+          onClose={() => setVisor(null)}
+        />
+      )}
       {elegir && datos && (
         <ElegirPersonas
           titulo={`${elegir.col.label} · ${capitalizar(elegir.curso)}`}
@@ -682,5 +729,90 @@ function ElegirPersonas(props: {
         </button>
       )}
     </Drawer>
+  )
+}
+
+/** Upload / view / replace / remove one course PDF, right in the list cell. */
+function DocumentoCelda(props: {
+  cursoId: string
+  curso: string
+  tipo: TipoDocumento
+  doc?: DocumentoCurso
+  onVer: (doc: DocumentoCurso) => void
+  onCambio: () => void
+}) {
+  const { cursoId, curso, tipo, doc, onVer, onCambio } = props
+  const toast = useToast()
+  const [subiendo, setSubiendo] = useState(false)
+  const [quitar, setQuitar] = useState(false)
+  const inputId = `pdf-${tipo}-${cursoId}`
+
+  const subir = async (archivo: File | undefined) => {
+    if (!archivo) return
+    setSubiendo(true)
+    try {
+      await subirDocumento(cursoId, tipo, archivo)
+      toast(`${DOCUMENTOS[tipo].label} de ${curso} ${doc ? 'reemplazado' : 'subido'}`)
+      onCambio()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo subir el PDF.', 'error')
+    } finally {
+      setSubiendo(false)
+    }
+  }
+
+  return (
+    <div className="doc-celda">
+      <input
+        id={inputId}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="sr-only"
+        onChange={e => {
+          subir(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
+      {subiendo ? (
+        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Subiendo…</span>
+      ) : doc ? (
+        <>
+          <button className="doc-chip" onClick={() => onVer(doc)} title="Ver PDF"><Icon name="pdf" size={14} />Ver</button>
+          <label htmlFor={inputId} className="link-btn" style={{ margin: 0, cursor: 'pointer' }} title="Reemplazar por otro PDF">Cambiar</label>
+          <button className="link-btn" style={{ color: 'var(--color-danger)' }} onClick={() => setQuitar(true)}>Quitar</button>
+        </>
+      ) : (
+        <label htmlFor={inputId} className="link-btn" style={{ margin: 0, cursor: 'pointer' }}>
+          <Icon name="upload" size={14} />Subir PDF
+        </label>
+      )}
+      <Modal
+        open={quitar}
+        title={`¿Quitar el ${DOCUMENTOS[tipo].label.toLowerCase()} de ${curso}?`}
+        onClose={() => setQuitar(false)}
+        actions={
+          <>
+            <button className="btn btn-outline" onClick={() => setQuitar(false)}>No, cancelar</button>
+            <button
+              className="btn btn-primary"
+              onClick={async () => {
+                setQuitar(false)
+                try {
+                  await quitarDocumento(cursoId, tipo)
+                  toast('Documento quitado')
+                  onCambio()
+                } catch (err) {
+                  toast(err instanceof Error ? err.message : 'No se pudo quitar.', 'error')
+                }
+              }}
+            >
+              Sí, quitar
+            </button>
+          </>
+        }
+      >
+        Los docentes ya no lo verán en la lista de cursos.
+      </Modal>
+    </div>
   )
 }
