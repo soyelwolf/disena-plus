@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
+import TextoEnriquecido from '../components/TextoEnriquecido'
+import { estaVacio, longitud } from '../shared/textoRico'
 import { Breadcrumbs, Cargando, CursoHeader, ErrorPanel, Modal, SavingOverlay, useToast } from '../components/ui'
 import { useAuth } from '../shared/AuthContext'
 import {
@@ -36,12 +38,12 @@ const TEXTOS: Array<{ key: keyof CriterioCampos; label: string; max: number }> =
 function erroresFila(f: Fila): Partial<Record<keyof CriterioCampos, string>> {
   const e: Partial<Record<keyof CriterioCampos, string>> = {}
   for (const t of TEXTOS) {
-    if (!f[t.key].trim()) e[t.key] = 'Completar información'
-    else if (f[t.key].length > t.max) e[t.key] = 'Exceso de caracteres'
+    if (estaVacio(f[t.key])) e[t.key] = 'Completar información'
+    else if (longitud(f[t.key]) > t.max) e[t.key] = 'Exceso de caracteres'
   }
   for (const n of NIVELES) {
-    if (!f[n.texto].trim()) e[n.texto] = 'Completar información'
-    else if (f[n.texto].length > LIMITES.criterioTexto) e[n.texto] = 'Exceso de caracteres'
+    if (estaVacio(f[n.texto])) e[n.texto] = 'Completar información'
+    else if (longitud(f[n.texto]) > LIMITES.criterioTexto) e[n.texto] = 'Exceso de caracteres'
     const p = f[n.puntaje].trim()
     if (p === '') e[n.puntaje] = 'Completar información'
     else if (!(Number(p) >= 0)) e[n.puntaje] = 'Ingresa un número válido'
@@ -239,12 +241,16 @@ function FilaCriterio({ numero, fila, errores, onChange, onEliminar }: FilaProps
               </td>
               {TEXTOS.map(t => (
                 <td key={t.key}>
-                  <Area value={fila[t.key]} max={t.max} error={errores[t.key]} onChange={v => onChange(t.key, v)} label={t.label} />
+                  {t.key === 'dpl_criterio' ? (
+                    <Area value={fila[t.key]} max={t.max} error={errores[t.key]} onChange={v => onChange(t.key, v)} label={t.label} />
+                  ) : (
+                    <TextoEnriquecido id={`${t.key}-${numero}`} value={fila[t.key]} max={t.max} error={errores[t.key]} onChange={v => onChange(t.key, v)} placeholder="Ingresar información" minHeight={180} compacto />
+                  )}
                 </td>
               ))}
               {NIVELES.map(n => (
                 <td key={n.texto}>
-                  <Area value={fila[n.texto]} max={LIMITES.criterioTexto} error={errores[n.texto]} onChange={v => onChange(n.texto, v)} label={n.label} corto />
+                  <TextoEnriquecido id={`${n.texto}-${numero}`} value={fila[n.texto]} max={LIMITES.criterioTexto} error={errores[n.texto]} onChange={v => onChange(n.texto, v)} placeholder="Ingresar información" minHeight={150} compacto />
                   <label className="field-label" style={{ marginTop: 10, marginBottom: 6 }}>
                     Puntaje
                     <input
@@ -271,15 +277,15 @@ function FilaCriterio({ numero, fila, errores, onChange, onEliminar }: FilaProps
   )
 }
 
-function Area(props: { value: string; max: number; error?: string; onChange: (v: string) => void; label: string; corto?: boolean }) {
-  const { value, max, error, onChange, label, corto } = props
+function Area(props: { value: string; max: number; error?: string; onChange: (v: string) => void; label: string }) {
+  const { value, max, error, onChange, label } = props
   const excedido = value.length > max
   const msg = error ?? (excedido ? 'Exceso de caracteres' : undefined)
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <textarea
         className={`textarea${msg ? ' has-error' : ''}`}
-        style={{ minHeight: corto ? 170 : 236, resize: 'none' }}
+        style={{ minHeight: 120, resize: 'none' }}
         placeholder="Ingresar información"
         value={value}
         aria-label={label}

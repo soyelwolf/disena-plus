@@ -33,21 +33,21 @@ export type Permiso =
   | 'editar_contenido' // fill in consignas and instruments, "Finalizar edición general"
   | 'aprobar_proceso' // approve / return a finished process
   | 'administrar_datos' // Centro de datos, users & roles, re-enable editing
-  | 'ver_todo' // read every course (auditing, reporting)
+  | 'ver_todo' // see every course, not only the assigned ones
 
 const PERMISOS: Record<UserRole, Permiso[]> = {
   administrador: ['administrar_datos', 'ver_todo'],
   docente: ['editar_contenido'],
   asesor: ['editar_contenido'],
-  monitor_ea: ['aprobar_proceso', 'ver_todo'],
-  monitor_qa: ['aprobar_proceso', 'ver_todo'],
-  monitor_disena: ['aprobar_proceso', 'ver_todo'],
-  dda: ['aprobar_proceso', 'ver_todo'],
+  monitor_ea: ['aprobar_proceso'],
+  monitor_qa: ['aprobar_proceso'],
+  monitor_disena: ['aprobar_proceso'],
+  dda: ['aprobar_proceso'],
 }
 
 /**
- * Roles already assigned to real people. Temporary: this moves to a
- * `usuario_rol` table managed from the Centro de datos.
+ * Fallback roles used only while the dpl_usuario table doesn't exist yet.
+ * Once it does, roles always come from the database.
  */
 export const ROLES_ASIGNADOS: Record<string, UserRole[]> = {
   'fbustamant@utp.edu.pe': ['administrador', 'docente'],
@@ -59,6 +59,8 @@ export interface SessionUser {
   nombre: string
   correo: string
   roles: UserRole[]
+  /** dpl_usuario id; absent in demo mode (table not created yet). */
+  usuarioId?: string
 }
 
 interface AuthContextValue {
@@ -66,12 +68,12 @@ interface AuthContextValue {
   isAuthenticated: boolean
   isAdmin: boolean
   can: (permiso: Permiso) => boolean
-  login: (correo: string, roles: UserRole[]) => void
+  login: (correo: string, roles: UserRole[], registro?: { usuarioId: string; nombre: string }) => void
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
-const STORAGE_KEY = 'disena.session.v2'
+const STORAGE_KEY = 'disena.session.v3'
 
 function nombreDesdeCorreo(correo: string): string {
   const local = correo.split('@')[0] ?? ''
@@ -97,6 +99,10 @@ function guardarSesion(user: SessionUser | null) {
   }
 }
 
+const ROLES_VALIDOS = new Set(Object.keys(ROLE_LABELS))
+export const normalizarRoles = (roles: string[]): UserRole[] =>
+  roles.map(r => r.trim().toLowerCase()).filter((r): r is UserRole => ROLES_VALIDOS.has(r))
+
 export function rolesLabel(roles: UserRole[]): string {
   return roles.map(r => ROLE_LABELS[r]).join(' · ')
 }
@@ -111,8 +117,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: !!user,
       isAdmin: permisos.has('administrar_datos'),
       can: (permiso: Permiso) => permisos.has(permiso),
-      login: (correo: string, roles: UserRole[]) => {
-        const next = { nombre: nombreDesdeCorreo(correo), correo: correo.toLowerCase(), roles }
+      login: (correo, roles, registro) => {
+        const next: SessionUser = {
+          nombre: registro?.nombre ?? nombreDesdeCorreo(correo),
+          correo: correo.toLowerCase(),
+          roles,
+          usuarioId: registro?.usuarioId,
+        }
         guardarSesion(next)
         setUser(next)
       },

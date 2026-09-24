@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Comentarios from '../components/Comentarios'
+import { VistaRica } from '../components/TextoEnriquecido'
 import { Breadcrumbs, Cargando, CursoHeader, Drawer, ErrorPanel, Modal, SavingOverlay, useToast } from '../components/ui'
 import { useAuth } from '../shared/AuthContext'
 import {
@@ -485,7 +486,7 @@ function CriterioAcordeon(props: CriterioProps) {
         <div className="criterio-body">
           <div>
             <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Descripción del criterio</p>
-            <p style={{ fontSize: 13, lineHeight: 1.55 }}>{c.dpl_definicioncriterio || '—'}</p>
+            <VistaRica valor={c.dpl_definicioncriterio} className="rte-small" />
           </div>
           <div className="niveles">
             {NIVELES.map(n => (
@@ -493,7 +494,7 @@ function CriterioAcordeon(props: CriterioProps) {
                 <div className="nivel-head">{n.label}</div>
                 <div className="nivel-body">
                   <span className="chip chip-pt" style={{ alignSelf: 'flex-start' }}>{Number(c[n.puntaje] ?? 0)} pt</span>
-                  <span style={{ whiteSpace: 'pre-wrap' }}>{(c[n.texto] as string) || '—'}</span>
+                  <VistaRica valor={c[n.texto] as string} className="rte-small" />
                 </div>
               </div>
             ))}

@@ -44,3 +44,6 @@ coverage
 Thumbs.db
 .dv-tools/data/
 supabase/seed.sql
+
+# Personal data prepared for import (names/emails) — never commit
+importacion/

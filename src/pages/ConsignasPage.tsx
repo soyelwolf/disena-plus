@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Comentarios from '../components/Comentarios'
+import TextoEnriquecido from '../components/TextoEnriquecido'
 import {
   Breadcrumbs,
-  CampoTexto,
   Cargando,
   CursoHeader,
   ErrorPanel,
@@ -441,7 +441,7 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
       </fieldset>
 
       {CAMPOS_CONSIGNA.map(campo => (
-        <CampoTexto
+        <TextoEnriquecido
           key={campo.key}
           id={`${campo.key}-${el.sesionId}`}
           label={campo.label}

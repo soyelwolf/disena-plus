@@ -14,6 +14,7 @@ import ConsignasPage from './pages/ConsignasPage'
 import RubricasPage from './pages/RubricasPage'
 import CriterioForm from './pages/CriterioForm'
 import { ToastProvider } from './components/ui'
+import CentroDatos from './pages/CentroDatos'
 
 export default function App() {
   return (
@@ -50,7 +51,7 @@ export default function App() {
           />
           <Route
             path="/datos"
-            element={<AdminRoute><Proximamente titulo="Centro de datos" icon="datos" descripcion="Carga, edición y descarga de todas las tablas: sílabos, competencias, consignas, instrumentos, usuarios y roles." /></AdminRoute>}
+            element={<AdminRoute><CentroDatos /></AdminRoute>}
           />
           <Route path="*" element={<Navigate to="/cursos" replace />} />
         </Routes>

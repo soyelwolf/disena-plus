@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useCursos } from '../shared/hooks/useCursos'
 import { MOCK_CURSO } from '../shared/mockData'
 import Icon from '../components/Icon'
+import { useAuth } from '../shared/AuthContext'
+import { getCursosAsignados } from '../shared/academico'
 import type { Curso } from '../types/curso'
 
 const normalizar = (s: string) =>
@@ -17,6 +19,14 @@ const capitalizar = (s: string) =>
 
 export default function ListadoCursos() {
   const navigate = useNavigate()
+  const { user, can } = useAuth()
+  // Only Administradores see every course; everyone else sees their assigned ones.
+  const verTodo = can('ver_todo') || !user?.usuarioId
+  const [asignados, setAsignados] = useState<Set<string> | null>(null)
+  useEffect(() => {
+    if (verTodo || !user?.usuarioId) return
+    getCursosAsignados(user.usuarioId).then(setAsignados).catch(() => setAsignados(new Set()))
+  }, [verTodo, user?.usuarioId])
   const [busqueda, setBusqueda] = useState('')
   const [tipo, setTipo] = useState('')
 
@@ -27,7 +37,12 @@ export default function ListadoCursos() {
   // The catalog is small (hundreds of rows): load it once and filter locally so
   // search-by-name-or-code and the modality filter respond instantly.
   const { items, isLoading, error } = useCursos({ pageSize: 1000 })
-  const cursos: Curso[] = !isLoading && error ? [MOCK_CURSO] : items
+  const todos: Curso[] = !isLoading && error ? [MOCK_CURSO] : items
+  const cursos = useMemo(
+    () => (verTodo ? todos : todos.filter(c => asignados?.has(c.id))),
+    [todos, verTodo, asignados],
+  )
+  const cargando = isLoading || (!verTodo && asignados === null)
 
   const tipos = useMemo(
     () => [...new Set(cursos.map(c => c.tipoEnsenanza).filter(Boolean))].sort() as string[],
@@ -95,7 +110,7 @@ export default function ListadoCursos() {
         </button>
       </div>
 
-      {isLoading ? (
+      {cargando ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '96px 0' }}>
           <span style={{ fontSize: 14, fontWeight: 700 }}>Buscando resultados</span>
           <span className="spinner-card">
@@ -112,7 +127,9 @@ export default function ListadoCursos() {
 
           {filtrados.length === 0 ? (
             <div className="panel" style={{ padding: '56px 24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
-              No encontramos cursos con esos filtros.
+              {cursos.length === 0
+                ? 'Aún no tienes cursos asignados. Pide al administrador que te asigne tus cursos.'
+                : 'No encontramos cursos con esos filtros.'}
             </div>
           ) : (
             <table className="data-table">

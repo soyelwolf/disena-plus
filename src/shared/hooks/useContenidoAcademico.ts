@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
-import { getCursoContexto, getProceso, type CursoContexto, type ProcesoCurso } from '../academico'
+import { getCursoContexto, getCursosAsignados, getProceso, type CursoContexto, type ProcesoCurso } from '../academico'
 import { useAuth } from '../AuthContext'
 
 /** Course context + workflow state for the "Diseño de contenido académico" screens. */
 export function useContenidoAcademico(cursoId: string | undefined) {
+  const { user, can } = useAuth()
+  const verTodo = can('ver_todo') || !user?.usuarioId
+  const usuarioId = user?.usuarioId
   const [ctx, setCtx] = useState<CursoContexto | null>(null)
   const [proceso, setProceso] = useState<ProcesoCurso | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -13,6 +16,10 @@ export function useContenidoAcademico(cursoId: string | undefined) {
     if (!cursoId) return
     setError(null)
     try {
+      if (!verTodo && usuarioId) {
+        const asignados = await getCursosAsignados(usuarioId)
+        if (!asignados.has(cursoId)) throw new Error('No tienes acceso a este curso. Solo puedes ver los cursos que tienes asignados.')
+      }
       const [c, p] = await Promise.all([getCursoContexto(cursoId), getProceso(cursoId)])
       setCtx(c)
       setProceso(p)
@@ -21,7 +28,7 @@ export function useContenidoAcademico(cursoId: string | undefined) {
     } finally {
       setLoading(false)
     }
-  }, [cursoId])
+  }, [cursoId, verTodo, usuarioId])
 
   useEffect(() => {
     setLoading(true)

@@ -493,3 +493,42 @@ fieldset:disabled .radio { cursor: default; opacity: 0.8; }
   position: fixed; left: var(--sidebar-width); right: 0; bottom: 0; z-index: 15; background: #fff; border-top: 1px solid var(--color-border);
   display: flex; justify-content: space-between; padding: 14px 40px;
 }
+
+/* ── Centro de datos ────────────────────────────────────────────────── */
+
+.datos-layout { display: flex; gap: 20px; align-items: flex-start; }
+.datos-menu { width: 260px; flex-shrink: 0; background: #fff; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(var(--header-height) + 16px); max-height: calc(100vh - 120px); overflow-y: auto; }
+.datos-grupo { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--color-text-muted); padding: 12px 10px 6px; }
+.datos-item { text-align: left; border: none; background: transparent; font: inherit; font-size: 14px; padding: 8px 10px; border-radius: 6px; color: var(--color-text); }
+.datos-item:hover { background: var(--color-primary-light); }
+.datos-item.active { background: var(--color-primary); color: #fff; font-weight: 700; }
+.datos-tabla-wrap { overflow: auto; max-height: calc(100vh - 290px); background: #fff; border-radius: 8px; }
+.datos-tabla { border-collapse: separate; border-spacing: 0; font-size: 13px; min-width: 100%; }
+.datos-tabla th { position: sticky; top: 0; background: var(--color-table-head); text-align: left; padding: 10px 12px; white-space: nowrap; font-weight: 700; z-index: 1; }
+.datos-tabla td { border-bottom: 1px solid var(--color-border); padding: 4px 6px; vertical-align: top; }
+.datos-tabla tr:hover td { background: #f7faf9; }
+.celda { display: block; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 6px; text-align: left; font: inherit; color: inherit; }
+.celda-edit { border: 1px solid transparent; background: transparent; border-radius: 4px; width: 100%; cursor: text; }
+.celda-edit:hover { border-color: var(--color-input-border); background: #fff; }
+@media (max-width: 1000px) { .datos-layout { flex-direction: column; } .datos-menu { width: 100%; position: static; max-height: none; } }
+
+/* ── Rich text editor ───────────────────────────────────────────────── */
+
+.rte { border: 1px solid var(--color-input-border); border-radius: 4px; background: #fff; transition: border-color .15s ease, box-shadow .15s ease; }
+.rte.focused { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(0, 92, 75, 0.14); }
+.rte.has-error { border-color: var(--color-danger); }
+.rte-toolbar { display: flex; align-items: center; gap: 2px; padding: 4px 6px; border-bottom: 1px solid var(--color-border); background: #fafbfb; border-radius: 4px 4px 0 0; flex-wrap: wrap; }
+.rte-btn { min-width: 30px; height: 28px; border: none; background: transparent; border-radius: 4px; color: #3d434a; font: inherit; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; }
+.rte-btn:hover { background: var(--color-primary-light); color: var(--color-primary); }
+.rte-btn.active { background: var(--color-primary); color: #fff; }
+.rte-sep { width: 1px; height: 18px; background: var(--color-border); margin: 0 4px; }
+.rte-area { padding: 12px 14px; font-size: 14px; line-height: 1.6; outline: none; overflow-wrap: anywhere; }
+.rte-area:empty::before { content: attr(data-placeholder); color: #9aa3a9; pointer-events: none; }
+.rte-area p, .rte-view p { margin: 0 0 6px; }
+.rte-area ul, .rte-area ol, .rte-view ul, .rte-view ol { margin: 4px 0 8px; padding-left: 22px; }
+.rte-area li, .rte-view li { margin: 2px 0; }
+.rte-view { font-size: 14px; line-height: 1.6; white-space: normal; }
+.rte-view > :last-child { margin-bottom: 0; }
+/* Plain textareas also grow with their content where the browser supports it. */
+.textarea { field-sizing: content; }
+.rte-small { font-size: 13px; line-height: 1.5; }

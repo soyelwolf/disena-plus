@@ -8,15 +8,16 @@
 // were not built for.
 
 import { supabase } from './supabaseClient'
+import { estaVacio, longitud } from './textoRico'
 
 // ── Limits & instrument catalogue ────────────────────────────────────────────
 
 /** Max characters per field. One place to change them. */
 export const LIMITES = {
   indicacionGeneral: 2000,
-  indicacionesEspecificas: 5000,
+  indicacionesEspecificas: 10000,
   recomendaciones: 2000,
-  anexo: 5000,
+  anexo: 15000,
   criterioNombre: 150,
   criterioTexto: 1000,
 } as const
@@ -221,9 +222,9 @@ export function validarConsigna(c: Partial<ConsignaCampos> | null): ConsignaVali
   const errores: ConsignaValidacion['errores'] = {}
   if (!c?.dpl_instrumento) errores.dpl_instrumento = 'Elige un instrumento.'
   for (const campo of CAMPOS_CONSIGNA) {
-    const v = (c?.[campo.key] ?? '').trim()
-    if (!v && !campo.opcional) errores[campo.key] = 'Completar información'
-    else if (v.length > campo.max) errores[campo.key] = 'Excediste el número de caracteres'
+    const v = c?.[campo.key] ?? ''
+    if (estaVacio(v) && !campo.opcional) errores[campo.key] = 'Completar información'
+    else if (longitud(v) > campo.max) errores[campo.key] = 'Excediste el número de caracteres'
   }
   return { completa: Object.keys(errores).length === 0, errores }
 }
@@ -723,4 +724,112 @@ export function haceCuanto(iso: string): string {
   if (h < 24) return `hace ${h} h`
   const d = Math.round(h / 24)
   return d === 1 ? 'hace 1 día' : `hace ${d} días`
+}
+
+// ── Users & course assignments ───────────────────────────────────────────────
+
+export interface UsuarioRegistrado {
+  id: string
+  nombre: string
+  correo: string
+  roles: string[]
+}
+
+/**
+ * Look a person up by email. `null` table = dpl_usuario doesn't exist yet
+ * (schema not applied), so callers fall back to demo sign-in.
+ */
+export async function buscarUsuario(correo: string): Promise<{ tabla: boolean; usuario: UsuarioRegistrado | null }> {
+  const { data, error } = await supabase
+    .from('dpl_usuario')
+    .select('dpl_usuarioid, dpl_nombre, dpl_correo, dpl_roles, dpl_activo')
+    .eq('dpl_correo', correo.toLowerCase())
+    .maybeSingle()
+  if (isMissingTable(error)) return { tabla: false, usuario: null }
+  fail(error, 'No se pudo validar el usuario.')
+  if (!data || data.dpl_activo === false) return { tabla: true, usuario: null }
+  return {
+    tabla: true,
+    usuario: { id: data.dpl_usuarioid, nombre: data.dpl_nombre, correo: data.dpl_correo, roles: data.dpl_roles ?? [] },
+  }
+}
+
+/** Course ids assigned to a user (any role). */
+export async function getCursosAsignados(usuarioId: string): Promise<Set<string>> {
+  const { data, error } = await supabase.from('dpl_cursoasignacion').select('dpl_cursoid').eq('dpl_usuarioid', usuarioId)
+  if (isMissingTable(error)) return new Set()
+  fail(error, 'No se pudieron cargar tus cursos asignados.')
+  return new Set((data ?? []).map(r => r.dpl_cursoid as string))
+}
+
+// ── Admin: users & assignments (Centro de datos) ─────────────────────────────
+
+export interface UsuarioAdmin {
+  id: string
+  nombre: string
+  correo: string | null
+  roles: string[]
+  activo: boolean
+}
+
+export interface Asignacion {
+  cursoId: string
+  usuarioId: string
+  rol: string
+}
+
+export async function listarUsuarios(): Promise<{ tabla: boolean; usuarios: UsuarioAdmin[]; asignaciones: Asignacion[] }> {
+  const { data, error } = await supabase.from('dpl_usuario').select('*').order('dpl_nombre', { ascending: true })
+  if (isMissingTable(error)) return { tabla: false, usuarios: [], asignaciones: [] }
+  fail(error, 'No se pudieron cargar los usuarios.')
+  const { data: asig, error: e2 } = await supabase.from('dpl_cursoasignacion').select('dpl_cursoid, dpl_usuarioid, dpl_rol')
+  fail(e2, 'No se pudieron cargar las asignaciones.')
+  return {
+    tabla: true,
+    usuarios: (data ?? []).map(u => ({
+      id: u.dpl_usuarioid,
+      nombre: u.dpl_nombre,
+      correo: u.dpl_correo,
+      roles: u.dpl_roles ?? [],
+      activo: u.dpl_activo !== false,
+    })),
+    asignaciones: (asig ?? []).map(a => ({ cursoId: a.dpl_cursoid, usuarioId: a.dpl_usuarioid, rol: a.dpl_rol })),
+  }
+}
+
+export async function guardarUsuario(u: Partial<UsuarioAdmin> & { nombre: string }): Promise<UsuarioAdmin> {
+  const correo = u.correo?.trim().toLowerCase() || null
+  const row = {
+    dpl_nombre: u.nombre.trim(),
+    dpl_correo: correo,
+    dpl_roles: u.roles ?? [],
+    dpl_activo: u.activo ?? true,
+    modifiedon: new Date().toISOString(),
+  }
+  const q = u.id
+    ? supabase.from('dpl_usuario').update(row).eq('dpl_usuarioid', u.id)
+    : supabase.from('dpl_usuario').insert(row)
+  const { data, error } = await q.select().single()
+  if (error && /duplicate key/i.test(error.message)) {
+    throw new Error(/correo/.test(error.message) ? 'Ese correo ya pertenece a otro usuario.' : 'Ya existe un usuario con ese nombre.')
+  }
+  fail(error, 'No se pudo guardar el usuario.')
+  return { id: data.dpl_usuarioid, nombre: data.dpl_nombre, correo: data.dpl_correo, roles: data.dpl_roles ?? [], activo: data.dpl_activo !== false }
+}
+
+export async function cambiarAsignacion(a: Asignacion, asignado: boolean): Promise<void> {
+  if (asignado) {
+    const { error } = await supabase
+      .from('dpl_cursoasignacion')
+      .upsert({ dpl_cursoid: a.cursoId, dpl_usuarioid: a.usuarioId, dpl_rol: a.rol }, { onConflict: 'dpl_cursoid,dpl_usuarioid,dpl_rol' })
+    fail(error, 'No se pudo asignar el curso.')
+  } else {
+    const { error } = await supabase
+      .from('dpl_cursoasignacion')
+      .delete()
+      .eq('dpl_cursoid', a.cursoId)
+      .eq('dpl_usuarioid', a.usuarioId)
+      .eq('dpl_rol', a.rol)
+    fail(error, 'No se pudo quitar la asignación.')
+  }
 }

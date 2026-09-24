@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ROLE_LABELS, ROLES_ASIGNADOS, UTP_DOMAIN, rolesLabel, useAuth, type UserRole } from '../shared/AuthContext'
+import { ROLE_LABELS, ROLES_ASIGNADOS, UTP_DOMAIN, normalizarRoles, rolesLabel, useAuth, type UserRole } from '../shared/AuthContext'
+import { buscarUsuario, type UsuarioRegistrado } from '../shared/academico'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
 
@@ -21,8 +22,13 @@ export default function Login() {
   const [recordar, setRecordar] = useState(() => correoGuardado() !== '')
   const [error, setError] = useState<string | null>(null)
   const [enviado, setEnviado] = useState(false)
+  const [validando, setValidando] = useState(false)
+  // 'db' = roles come from dpl_usuario; 'demo' = table not created yet.
+  const [modo, setModo] = useState<'db' | 'demo'>('demo')
+  const [registrado, setRegistrado] = useState<UsuarioRegistrado | null>(null)
   const [rolDemo, setRolDemo] = useState<UserRole>('docente')
-  const rolesAsignados: UserRole[] | undefined = ROLES_ASIGNADOS[correo.trim().toLowerCase()]
+  const rolesAsignados: UserRole[] | undefined =
+    modo === 'db' ? (registrado ? normalizarRoles(registrado.roles) : undefined) : ROLES_ASIGNADOS[correo.trim().toLowerCase()]
 
   useEffect(() => {
     document.title = 'Ingresar — Diseña+'
@@ -32,7 +38,7 @@ export default function Login() {
     if (isAuthenticated) navigate('/cursos', { replace: true })
   }, [isAuthenticated, navigate])
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     const valor = correo.trim().toLowerCase()
     if (!valor) {
@@ -50,8 +56,22 @@ export default function Login() {
     } catch {
       // Storage unavailable — nothing to remember.
     }
-    // TODO(auth): send the Supabase magic link here instead of simulating it.
-    setEnviado(true)
+    setValidando(true)
+    try {
+      const { tabla, usuario } = await buscarUsuario(valor)
+      if (tabla && !usuario) {
+        setError('Tu correo aún no está registrado en Diseña+. Pide acceso al administrador.')
+        return
+      }
+      setModo(tabla ? 'db' : 'demo')
+      setRegistrado(usuario)
+      // TODO(auth): send the Supabase magic link here instead of simulating it.
+      setEnviado(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo validar tu correo.')
+    } finally {
+      setValidando(false)
+    }
   }
 
   return (
@@ -110,8 +130,8 @@ export default function Login() {
               Recordar mi correo en este equipo
             </label>
 
-            <button type="submit" className="btn btn-primary" style={{ height: 48, fontWeight: 700 }}>
-              Enviar enlace de acceso
+            <button type="submit" className="btn btn-primary" style={{ height: 48, fontWeight: 700 }} disabled={validando}>
+              {validando ? 'Validando…' : 'Enviar enlace de acceso'}
             </button>
 
             <div className="login-note">
@@ -162,7 +182,13 @@ export default function Login() {
             <button
               className="btn btn-primary"
               style={{ height: 48, fontWeight: 700 }}
-              onClick={() => login(correo.trim(), rolesAsignados ?? [rolDemo])}
+              onClick={() =>
+                login(
+                  correo.trim(),
+                  rolesAsignados ?? [rolDemo],
+                  registrado ? { usuarioId: registrado.id, nombre: registrado.nombre } : undefined,
+                )
+              }
             >
               Entrar a Diseña+
             </button>

@@ -72,3 +72,41 @@ begin
     );
   end loop;
 end $$;
+
+-- ── Usuarios, roles y cursos asignados ───────────────────────────────────────
+-- Everyone signs in with their @utp.edu.pe email; their roles live here (a
+-- person can hold several). Only Administradores see every course — everybody
+-- else sees just the courses assigned to them in dpl_cursoasignacion.
+create table if not exists dpl_usuario (
+  dpl_usuarioid uuid primary key default gen_random_uuid(),
+  dpl_correo text unique,                 -- lower-case @utp.edu.pe; null until known
+  dpl_nombre text not null,               -- name exactly as SharePoint shows it
+  dpl_roles text[] not null default '{}', -- administrador, docente, asesor, monitor_ea, monitor_qa, monitor_disena, dda
+  dpl_activo boolean not null default true,
+  createdon timestamptz not null default now(),
+  modifiedon timestamptz not null default now()
+);
+create unique index if not exists dpl_usuario_nombre_idx on dpl_usuario (lower(dpl_nombre));
+
+-- One row per person × course × role (SharePoint: DocenteyAsesor, DCI, DDA).
+create table if not exists dpl_cursoasignacion (
+  dpl_cursoasignacionid uuid primary key default gen_random_uuid(),
+  dpl_cursoid uuid not null references dpl_curso (dpl_cursoid) on delete cascade,
+  dpl_usuarioid uuid not null references dpl_usuario (dpl_usuarioid) on delete cascade,
+  dpl_rol text not null,                  -- docente | monitor_ea | dda | ...
+  createdon timestamptz not null default now(),
+  unique (dpl_cursoid, dpl_usuarioid, dpl_rol)
+);
+create index if not exists dpl_cursoasignacion_usuario_idx on dpl_cursoasignacion (dpl_usuarioid);
+
+do $$
+declare t text;
+begin
+  foreach t in array array['dpl_usuario', 'dpl_cursoasignacion'] loop
+    execute format('alter table %I enable row level security', t);
+    execute format(
+      'drop policy if exists "allow_all_%1$s" on %1$I; create policy "allow_all_%1$s" on %1$I for all using (true) with check (true);',
+      t
+    );
+  end loop;
+end $$;
