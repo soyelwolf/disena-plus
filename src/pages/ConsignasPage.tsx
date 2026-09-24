@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
-import Comentarios from '../components/Comentarios'
+import { BotonComentarios, CAMPO_GENERAL, PanelComentarios, ZonaComentable, datosItem, type FiltroComentarios } from '../components/Comentarios'
 import TextoEnriquecido from '../components/TextoEnriquecido'
 import DatosAdjuntos from '../components/DatosAdjuntos'
 import { Link } from 'react-router-dom'
@@ -58,7 +58,7 @@ export default function ConsignasPage() {
   const [modal, setModal] = useState<null | 'confirmar' | 'incompleto' | 'enviado' | 'finalizado' | 'ia'>(null)
   const [finalizando, setFinalizando] = useState(false)
   const [comentarios, setComentarios] = useState<Comentario[]>([])
-  const [verComentarios, setVerComentarios] = useState(false)
+  const [filtro, setFiltro] = useState<FiltroComentarios | null>(null)
   const [activada, setActivada] = useState<boolean | null>(null)
   const pendientes = useRef(new Map<string, Partial<ConsignaCampos>>())
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -156,8 +156,20 @@ export default function ConsignasPage() {
   const todoCompleto = ctx.elementos.length > 0 && completos === ctx.elementos.length
   const el = ctx.elementos.find(e => e.sesionId === seleccion) ?? null
   const esMonitor = !!user?.roles.includes('monitor_ea')
-  const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado !== 'en_edicion' || proceso.finalizado.consignas)
-  const puedeComentar = can('aprobar_proceso') && proceso.estado.startsWith('revision')
+  const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado === 'revision_dda' || proceso.estado === 'aprobado')
+  // Approvers open comments at any moment (it never blocks the process);
+  // the teaching team replies so they know it was addressed.
+  const puedeComentar = can('aprobar_proceso') && proceso.estado !== 'aprobado'
+  const puedeResponder = can('aprobar_proceso') || can('editar_contenido')
+  const campoLabel = (campo: string) =>
+    campo === 'dpl_instrumento' ? 'Instrumento' : campo === 'adjuntos' ? 'Datos adjuntos' : campo === CAMPO_GENERAL ? 'General' : CAMPOS_CONSIGNA.find(c => c.key === campo)?.label.replace(' (Opcional)', '') ?? campo
+  const elDeConsigna = (id: string) => ctx.elementos.find(e => e.consigna?.dpl_consignaid === id)
+  const irItem = (entidadId: string, campo: string) => {
+    const destino = elDeConsigna(entidadId)
+    if (destino) setSeleccion(destino.sesionId)
+    setFiltro({ entidadId, campo })
+    setTimeout(() => document.getElementById(`item-${campo}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150)
+  }
 
   const pedirFinalizar = async () => {
     clearTimeout(timer.current)
@@ -267,7 +279,7 @@ export default function ConsignasPage() {
             <div style={{ padding: '0 4px 6px' }}><ProgressBar value={(completos / ctx.elementos.length) * 100} /></div>
             {ctx.elementos.map(e => {
               const v = validaciones.get(e.sesionId)
-              const conComentario = comentarios.some(c => c.entidadId === e.consigna?.dpl_consignaid)
+              const pendientesEl = comentarios.filter(c => !c.padreId && !c.resuelto && c.entidadId === e.consigna?.dpl_consignaid).length
               return (
                 <button
                   key={e.sesionId}
@@ -275,7 +287,7 @@ export default function ConsignasPage() {
                   onClick={() => setSeleccion(e.sesionId)}
                 >
                   <span style={{ flex: 1, textAlign: 'left' }}>{e.nombre}</span>
-                  {conComentario && <span style={{ color: 'var(--color-primary)', display: 'flex' }} title="Tiene comentarios"><Icon name="comment" size={16} /></span>}
+                  {pendientesEl > 0 && <span className="chip chip-pt" style={{ display: 'inline-flex', gap: 4 }} title={`${pendientesEl} comentarios pendientes`}><Icon name="comment" size={13} />{pendientesEl}</span>}
                   {v?.completa ? (
                     <span style={{ color: 'var(--color-success)', display: 'flex' }} aria-label="Completo"><Icon name="checkCircle" size={18} strokeWidth={2} /></span>
                   ) : mostrarErrores ? (
@@ -289,7 +301,7 @@ export default function ConsignasPage() {
                 <Icon name="info" size={15} />Ayuda rápida
               </span>
               <span style={{ fontSize: 13, lineHeight: 1.5, color: '#24433c' }}>
-                Completa los campos de cada elemento. Cuando todos tengan ✓, usa «Finalizar edición general» para enviarlos a revisión.
+                Completa los campos de cada elemento. Cuando todos tengan ✓, usa «Finalizar edición general» para avisar al Monitor EA y DDA que pueden revisar. Podrás seguir editando hasta que aprueben.
               </span>
             </div>
           </div>
@@ -302,8 +314,10 @@ export default function ConsignasPage() {
               mostrarErrores={mostrarErrores}
               onChange={campos => editar(el, campos)}
               onIA={() => setModal('ia')}
-              numComentarios={comentarios.filter(c => c.entidadId === el.consigna?.dpl_consignaid).length}
-              onComentarios={() => setVerComentarios(true)}
+              comentarios={comentarios}
+              puedeComentar={puedeComentar}
+              campoActivo={filtro?.entidadId && filtro.entidadId === el.consigna?.dpl_consignaid ? filtro.campo ?? null : null}
+              onComentarios={(campo, cita) => el.consigna?.dpl_consignaid && setFiltro({ entidadId: el.consigna.dpl_consignaid, campo, cita })}
             />
           )}
         </div>
@@ -320,7 +334,7 @@ export default function ConsignasPage() {
           </>
         }
       >
-        La información no se podrá volver a editar luego de finalizar.
+        Se avisará al Monitor EA y DDA que las consignas están listas para revisar. Podrás seguir editando hasta que las aprueben.
       </Modal>
       <Modal
         open={modal === 'incompleto'}
@@ -336,7 +350,7 @@ export default function ConsignasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        La edición estará deshabilitada para que pueda ser revisada de forma correcta.
+        Puedes seguir editando mientras revisan. La edición se bloqueará solo cuando el Monitor EA apruebe.
       </Modal>
       <Modal
         open={modal === 'finalizado'}
@@ -344,7 +358,7 @@ export default function ConsignasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        Cuando finalices también las Rúbricas, se avisará a los aprobadores para que revisen todo el proceso.
+        Puedes seguir editando. Cuando finalices también las Rúbricas, se avisará a los aprobadores para que revisen todo el proceso.
       </Modal>
       <Modal
         open={modal === 'ia'}
@@ -356,19 +370,24 @@ export default function ConsignasPage() {
       </Modal>
       <SavingOverlay show={finalizando} />
 
-      {el?.consigna?.dpl_consignaid && (
-        <Comentarios
-          open={verComentarios}
-          onClose={() => setVerComentarios(false)}
-          titulo={`Comentarios: ${el.nombre}`}
-          cursoId={ctx.id}
-          instrumento="consignas"
-          entidadId={el.consigna.dpl_consignaid}
-          comentarios={comentarios}
-          onNuevo={cargarComentarios}
-          puedeComentar={puedeComentar}
-        />
-      )}
+      <PanelComentarios
+        filtro={filtro}
+        onClose={() => setFiltro(null)}
+        titulo={filtro?.campo ? 'Comentarios' : `Comentarios: ${filtro?.entidadId ? elDeConsigna(filtro.entidadId)?.nombre ?? '' : 'todas las consignas'}`}
+        cursoId={ctx.id}
+        instrumento="consignas"
+        comentarios={comentarios}
+        onCambio={cargarComentarios}
+        etiquetaItem={(id, campo) => `${elDeConsigna(id)?.nombre ?? 'Consigna'} · ${campoLabel(campo)}`}
+        valorItem={(id, campo) => {
+          const c = elDeConsigna(id)?.consigna
+          if (!c || campo === 'adjuntos' || campo === CAMPO_GENERAL) return null
+          return String((c as unknown as Record<string, unknown>)[campo] ?? '')
+        }}
+        puedeComentar={puedeComentar}
+        puedeResponder={puedeResponder}
+        onIrItem={irItem}
+      />
     </div>
   )
 }
@@ -400,11 +419,20 @@ interface EditorProps {
   mostrarErrores: boolean
   onChange: (campos: Partial<ConsignaCampos>) => void
   onIA: () => void
-  numComentarios: number
-  onComentarios: () => void
+  comentarios: Comentario[]
+  puedeComentar: boolean
+  campoActivo: string | null
+  /** campo undefined = every comment of this consigna. */
+  onComentarios: (campo?: string, cita?: string) => void
 }
 
-function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComentarios, onComentarios }: EditorProps) {
+function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, comentarios, puedeComentar, campoActivo, onComentarios }: EditorProps) {
+  const consignaId = el.consigna?.dpl_consignaid
+  const pendientes = comentarios.filter(k => !k.padreId && !k.resuelto && k.entidadId === consignaId).length
+  const boton = (campo: string, label: string) =>
+    consignaId ? (
+      <BotonComentarios estado={datosItem(comentarios, consignaId, campo).estado} puedeComentar={puedeComentar} activo={campoActivo === campo} label={label} onClick={() => onComentarios(campo)} />
+    ) : null
   const c = el.consigna
   const tipo = tipoInstrumento(c?.dpl_instrumento)
   const { errores } = validarConsigna(c)
@@ -415,9 +443,9 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
       <div className="row-between" style={{ paddingBottom: 18, borderBottom: '1px solid var(--color-border)' }}>
         <h2 style={{ fontSize: 20, fontWeight: 700 }}>Consigna: {el.nombre}</h2>
         <div style={{ display: 'flex', gap: 10 }}>
-          {numComentarios > 0 || c?.dpl_consignaid ? (
-            <button className="btn btn-outline" style={{ height: 42 }} onClick={onComentarios}>
-              <Icon name="comment" size={16} />Comentarios{numComentarios ? ` (${numComentarios})` : ''}
+          {consignaId && comentarios.some(k => k.entidadId === consignaId) ? (
+            <button className="btn btn-outline" style={{ height: 42 }} onClick={() => onComentarios()}>
+              <Icon name="comment" size={16} />{pendientes ? `Comentarios pendientes (${pendientes})` : 'Comentarios'}
             </button>
           ) : null}
           {editable && (
@@ -433,8 +461,9 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
         <p className="readonly-box">{el.logroUnidad || 'La unidad aún no tiene un logro específico cargado.'}</p>
       </div>
 
+      <div id="item-dpl_instrumento" className={campoActivo === 'dpl_instrumento' ? 'coment-item-activo' : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="coment-label"><span className="field-label" style={{ marginBottom: 0 }}>Instrumento</span>{boton('dpl_instrumento', 'Instrumento')}</div>
       <fieldset style={{ border: 'none', display: 'flex', flexDirection: 'column', gap: 10 }} disabled={!editable}>
-        <legend className="field-label">Instrumento</legend>
         <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', fontSize: 14 }}>
           {INSTRUMENTOS.map(i => (
             <label key={i.label} className="radio">
@@ -458,6 +487,7 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
           <span className="field-error"><Icon name="alert" size={14} />{errores.dpl_instrumento}</span>
         )}
       </fieldset>
+      </div>
 
       {valor === INSTRUMENTO_VALORES.noAplica && (
         <div className="alert-banner alert-info" style={{ justifyContent: 'flex-start', padding: '10px 14px' }}>
@@ -465,18 +495,35 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
         </div>
       )}
       {CAMPOS_CONSIGNA.map(campo => (
-        <TextoEnriquecido
+        <ZonaComentable
           key={campo.key}
-          id={`${campo.key}-${el.sesionId}`}
-          label={campo.label}
-          value={c?.[campo.key] ?? ''}
-          max={campo.max}
-          readOnly={!editable}
-          error={mostrarErrores ? errores[campo.key] : undefined}
-          onChange={v => onChange({ [campo.key]: v })}
-        />
+          citas={datosItem(comentarios, consignaId, campo.key).citas}
+          puedeComentar={puedeComentar && !!consignaId}
+          onComentar={cita => onComentarios(campo.key, cita)}
+        >
+          <div id={`item-${campo.key}`} className={campoActivo === campo.key ? 'coment-item-activo' : undefined}>
+            <TextoEnriquecido
+              id={`${campo.key}-${el.sesionId}`}
+              label={campo.label}
+              value={c?.[campo.key] ?? ''}
+              max={campo.max}
+              readOnly={!editable}
+              error={mostrarErrores ? errores[campo.key] : undefined}
+              onChange={v => onChange({ [campo.key]: v })}
+              accion={boton(campo.key, campo.label)}
+            />
+          </div>
+        </ZonaComentable>
       ))}
-      <DatosAdjuntos consignaId={c?.dpl_consignaid || null} editable={editable} titulo={el.nombre} />
+      <div id="item-adjuntos" className={campoActivo === 'adjuntos' ? 'coment-item-activo' : undefined}>
+        <DatosAdjuntos consignaId={c?.dpl_consignaid || null} editable={editable} titulo={el.nombre} accion={boton('adjuntos', 'Datos adjuntos')} />
+      </div>
+      {consignaId && comentarios.some(k => !k.padreId && k.entidadId === consignaId && k.campo === CAMPO_GENERAL) && (
+        <div className="coment-label" id="item-general">
+          <span className="field-label" style={{ marginBottom: 0 }}>Comentarios generales (anteriores)</span>
+          {boton(CAMPO_GENERAL, 'Comentarios generales')}
+        </div>
+      )}
     </section>
   )
 }

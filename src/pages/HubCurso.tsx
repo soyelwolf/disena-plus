@@ -63,7 +63,7 @@ export default function HubCurso() {
       subtitulo: 'Instrucciones para tu tarea',
       to: `/cursos/${ctx.id}/consignas`,
       avance: total ? (consignasOk / total) * 100 : 0,
-      detalle: proceso.finalizado.consignas ? 'Edición finalizada' : `${consignasOk} de ${total} completadas`,
+      detalle: proceso.finalizado.consignas ? 'Avisado a revisión' : `${consignasOk} de ${total} completadas`,
       estado: ctx.permite.consignas || total > 0 ? 'activo' : 'bloqueado',
     },
     {
@@ -75,7 +75,7 @@ export default function HubCurso() {
       detalle: !rubricas
         ? 'Calculando…'
         : proceso.finalizado.rubricas
-          ? 'Edición finalizada'
+          ? 'Avisado a revisión'
           : `${rubricasOk} de ${rubricaEls.length} elementos completos`,
       estado: rubricas && rubricaEls.length === 0 ? 'no_aplica' : 'activo',
     },

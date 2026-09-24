@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
-import Comentarios from '../components/Comentarios'
+import { BotonComentarios, CAMPO_GENERAL, PanelComentarios, ZonaComentable, datosItem, type FiltroComentarios } from '../components/Comentarios'
 import { VistaRica } from '../components/TextoEnriquecido'
 import { Link } from 'react-router-dom'
 import { Breadcrumbs, Cargando, CursoHeader, Drawer, ErrorPanel, Modal, SavingOverlay, useToast } from '../components/ui'
@@ -51,7 +51,7 @@ export default function RubricasPage() {
   const [trabajando, setTrabajando] = useState(false)
   const [iaPara, setIaPara] = useState<RubricaElemento | null>(null)
   const [comentarios, setComentarios] = useState<Comentario[]>([])
-  const [comentariosDe, setComentariosDe] = useState<{ id: string; titulo: string } | null>(null)
+  const [filtro, setFiltro] = useState<FiltroComentarios | null>(null)
   const [activada, setActivada] = useState<boolean | null>(null)
   useEffect(() => {
     if (ctx) getActivacion(ctx).then(a => setActivada(a.rubrica.activado)).catch(() => setActivada(true))
@@ -120,11 +120,25 @@ export default function RubricasPage() {
   const problemas = datos.elementos.map(problemaElemento)
   const todoCompleto = datos.elementos.length > 0 && problemas.every(p => p === null)
   const esMonitor = !!user?.roles.includes('monitor_ea')
-  const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado !== 'en_edicion' || proceso.finalizado.rubricas)
-  const puedeComentar = can('aprobar_proceso') && proceso.estado.startsWith('revision')
-  const elementosConComentario = datos.elementos.filter(r =>
-    r.criterios.some(c => comentarios.some(k => k.entidadId === c.dpl_rubricacriterioid)),
-  ).length
+  const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado === 'revision_dda' || proceso.estado === 'aprobado')
+  // Approvers comment at any moment (it never blocks); the teaching team replies.
+  const puedeComentar = can('aprobar_proceso') && proceso.estado !== 'aprobado'
+  const puedeResponder = can('aprobar_proceso') || can('editar_contenido')
+  const pendientesRubrica = comentarios.filter(k => !k.padreId && !k.resuelto).length
+  const buscarCriterio = (id: string) => {
+    for (const r of datos.elementos) {
+      const c = r.criterios.find(x => x.dpl_rubricacriterioid === id)
+      if (c) return { r, c }
+    }
+    return null
+  }
+  const etiquetaCampo = (campo: string) =>
+    campo === 'dpl_criterio' ? 'Nombre del criterio' : campo === 'dpl_definicioncriterio' ? 'Descripción del criterio' : campo === CAMPO_GENERAL ? 'General' : NIVELES.find(n => n.texto === campo)?.label ?? campo
+  const irItem = (entidadId: string, campo: string) => {
+    setAbiertos(prev => new Set(prev).add(entidadId))
+    setFiltro({ entidadId, campo })
+    setTimeout(() => document.getElementById(`item-${entidadId}-${campo}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150)
+  }
 
   const pedirFinalizar = () => {
     if (!todoCompleto) {
@@ -257,9 +271,13 @@ export default function RubricasPage() {
           <Icon name="info" size={16} />{motivo}
         </div>
       )}
-      {elementosConComentario > 0 && (
+      {comentarios.length > 0 && (
         <div className="alert-banner alert-info" style={{ padding: '10px 14px' }}>
-          <Icon name="info" size={16} />Tienes comentarios en {elementosConComentario} {elementosConComentario === 1 ? 'elemento' : 'elementos'}
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Icon name="comment" size={16} />
+            {pendientesRubrica > 0 ? `Hay ${pendientesRubrica} ${pendientesRubrica === 1 ? 'comentario pendiente' : 'comentarios pendientes'} en la rúbrica` : 'Todos los comentarios de la rúbrica están resueltos'}
+          </span>
+          <button className="link-btn" onClick={() => setFiltro({})}>Ver comentarios</button>
         </div>
       )}
 
@@ -311,9 +329,10 @@ export default function RubricasPage() {
                     )
                   }
                   onCompetencia={(comp, marcado) => toggleCompetencia(c, comp, marcado)}
-                  numComentarios={comentarios.filter(k => k.entidadId === c.dpl_rubricacriterioid).length}
+                  comentarios={comentarios}
                   puedeComentar={puedeComentar}
-                  onComentarios={() => setComentariosDe({ id: c.dpl_rubricacriterioid, titulo: `Comentarios: Criterio N°${c.dpl_orden ?? ''}` })}
+                  campoActivo={filtro?.entidadId === c.dpl_rubricacriterioid ? filtro.campo ?? null : null}
+                  onComentarios={(campo, cita) => setFiltro({ entidadId: c.dpl_rubricacriterioid, campo, cita })}
                   onEditar={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/editar`, { state: { foco: c.dpl_rubricacriterioid } })}
                   onEliminar={() => setEliminar(c)}
                 />
@@ -362,7 +381,7 @@ export default function RubricasPage() {
           </>
         }
       >
-        La información no se podrá volver a editar luego de finalizar.
+        Se avisará al Monitor EA y DDA que la rúbrica está lista para revisar. Podrás seguir editando hasta que la aprueben.
       </Modal>
       <Modal
         open={modal === 'enviado'}
@@ -370,7 +389,7 @@ export default function RubricasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        La edición estará deshabilitada para que pueda ser revisada de forma correcta.
+        Puedes seguir editando mientras revisan. La edición se bloqueará solo cuando el Monitor EA apruebe.
       </Modal>
       <Modal
         open={modal === 'finalizado'}
@@ -378,7 +397,7 @@ export default function RubricasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        Cuando finalices también las Consignas, se avisará a los aprobadores para que revisen todo el proceso.
+        Puedes seguir editando. Cuando finalices también las Consignas, se avisará a los aprobadores para que revisen todo el proceso.
       </Modal>
       <Modal
         open={!!eliminar}
@@ -410,19 +429,29 @@ export default function RubricasPage() {
           setModal('ia_pendiente')
         }}
       />
-      {comentariosDe && (
-        <Comentarios
-          open
-          onClose={() => setComentariosDe(null)}
-          titulo={comentariosDe.titulo}
-          cursoId={ctx.id}
-          instrumento="rubricas"
-          entidadId={comentariosDe.id}
-          comentarios={comentarios}
-          onNuevo={cargarComentarios}
-          puedeComentar={puedeComentar}
-        />
-      )}
+      <PanelComentarios
+        filtro={filtro}
+        onClose={() => setFiltro(null)}
+        titulo={filtro?.campo ? 'Comentarios' : filtro?.entidadId ? `Comentarios: Criterio N°${buscarCriterio(filtro.entidadId)?.c.dpl_orden ?? ''}` : 'Comentarios de la rúbrica'}
+        cursoId={ctx.id}
+        instrumento="rubricas"
+        comentarios={comentarios}
+        onCambio={cargarComentarios}
+        etiquetaItem={(id, campo) => {
+          const x = buscarCriterio(id)
+          return x ? `${x.r.elemento.nombre} · Criterio N°${x.c.dpl_orden ?? ''} · ${etiquetaCampo(campo)}` : etiquetaCampo(campo)
+        }}
+        valorItem={(id, campo) => {
+          const x = buscarCriterio(id)
+          if (!x || campo === CAMPO_GENERAL) return null
+          const v = (x.c as unknown as Record<string, unknown>)[campo]
+          const n = NIVELES.find(k => k.texto === campo)
+          return `${v ?? ''}${n ? ` ${x.c[n.puntaje] ?? ''}` : ''}`
+        }}
+        puedeComentar={puedeComentar}
+        puedeResponder={puedeResponder}
+        onIrItem={irItem}
+      />
       <SavingOverlay show={trabajando} />
     </div>
   )
@@ -462,15 +491,26 @@ interface CriterioProps {
   competencias: CompetenciaCurso[]
   seleccionadas: Set<string>
   onCompetencia: (c: CompetenciaCurso, marcado: boolean) => void
-  numComentarios: number
+  comentarios: Comentario[]
   puedeComentar: boolean
-  onComentarios: () => void
+  campoActivo: string | null
+  onComentarios: (campo?: string, cita?: string) => void
   onEditar: () => void
   onEliminar: () => void
 }
 
 function CriterioAcordeon(props: CriterioProps) {
-  const { criterio: c, abierto, onToggle, editable, competencias, seleccionadas } = props
+  const { criterio: c, abierto, onToggle, editable, competencias, seleccionadas, comentarios, puedeComentar, campoActivo } = props
+  const id = c.dpl_rubricacriterioid
+  const pendientes = comentarios.filter(k => !k.padreId && !k.resuelto && k.entidadId === id).length
+  const boton = (campo: string, label: string) => (
+    <BotonComentarios estado={datosItem(comentarios, id, campo).estado} puedeComentar={puedeComentar} activo={campoActivo === campo} label={label} onClick={() => props.onComentarios(campo)} />
+  )
+  const zona = (campo: string, hijos: ReactNode, className?: string) => (
+    <ZonaComentable citas={datosItem(comentarios, id, campo).citas} puedeComentar={puedeComentar} onComentar={cita => props.onComentarios(campo, cita)} className={className}>
+      <div id={`item-${id}-${campo}`} className={campoActivo === campo ? 'coment-item-activo' : undefined}>{hijos}</div>
+    </ZonaComentable>
+  )
   const [menu, setMenu] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -486,12 +526,10 @@ function CriterioAcordeon(props: CriterioProps) {
         <button className="criterio-toggle" aria-expanded={abierto} onClick={onToggle}>
           <span className="criterio-num">N°{c.dpl_orden ?? ''}</span>
           <span style={{ flex: 1, textAlign: 'left', fontSize: 14, fontWeight: 700 }}>{c.dpl_criterio || 'Criterio sin nombre'}</span>
+          {!abierto && pendientes > 0 && (
+            <span className="chip chip-pt" style={{ display: 'inline-flex', gap: 4 }} title={`${pendientes} comentarios pendientes`}><Icon name="comment" size={13} />{pendientes}</span>
+          )}
         </button>
-        {(props.numComentarios > 0 || props.puedeComentar) && (
-          <button className="icon-btn" aria-label="Ver comentarios" title="Comentarios" onClick={props.onComentarios}>
-            <Icon name="comment" size={18} />
-          </button>
-        )}
         {editable && (
           <div style={{ position: 'relative' }} ref={ref}>
             <button className="icon-btn" aria-label="Más opciones" onClick={() => setMenu(m => !m)}>
@@ -512,21 +550,43 @@ function CriterioAcordeon(props: CriterioProps) {
 
       {abierto && (
         <div className="criterio-body">
-          <div>
-            <p style={{ fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Descripción del criterio</p>
-            <VistaRica valor={c.dpl_definicioncriterio} className="rte-small" />
-          </div>
+          {zona(
+            'dpl_criterio',
+            <div>
+              <div className="coment-label" style={{ marginBottom: 4 }}><p style={{ fontSize: 13, fontWeight: 700 }}>Nombre del criterio</p>{boton('dpl_criterio', 'Nombre del criterio')}</div>
+              <p style={{ fontSize: 14 }}>{c.dpl_criterio || '—'}</p>
+            </div>,
+          )}
+          {zona(
+            'dpl_definicioncriterio',
+            <div>
+              <div className="coment-label" style={{ marginBottom: 4 }}><p style={{ fontSize: 13, fontWeight: 700 }}>Descripción del criterio</p>{boton('dpl_definicioncriterio', 'Descripción del criterio')}</div>
+              <VistaRica valor={c.dpl_definicioncriterio} className="rte-small" />
+            </div>,
+          )}
           <div className="niveles">
             {NIVELES.map(n => (
-              <div key={n.texto} className="nivel">
-                <div className="nivel-head">{n.label}</div>
-                <div className="nivel-body">
-                  <span className="chip chip-pt" style={{ alignSelf: 'flex-start' }}>{Number(c[n.puntaje] ?? 0)} pt</span>
-                  <VistaRica valor={c[n.texto] as string} className="rte-small" />
-                </div>
+              <div key={n.texto}>
+                {zona(
+                  n.texto,
+                  <div className="nivel" style={{ height: '100%' }}>
+                    <div className="nivel-head coment-label">{n.label}{boton(n.texto, n.label)}</div>
+                    <div className="nivel-body">
+                      <span className="chip chip-pt" style={{ alignSelf: 'flex-start' }}>{Number(c[n.puntaje] ?? 0)} pt</span>
+                      <VistaRica valor={c[n.texto] as string} className="rte-small" />
+                    </div>
+                  </div>,
+                  'nivel-zona',
+                )}
               </div>
             ))}
           </div>
+          {comentarios.some(k => !k.padreId && k.entidadId === id && k.campo === CAMPO_GENERAL) && (
+            <div className="coment-label" style={{ justifyContent: 'flex-start' }}>
+              <span style={{ fontSize: 13, fontWeight: 700 }}>Comentarios generales (anteriores)</span>
+              {boton(CAMPO_GENERAL, 'Comentarios generales')}
+            </div>
+          )}
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <p style={{ fontSize: 14 }}>Competencias relacionadas al criterio:</p>

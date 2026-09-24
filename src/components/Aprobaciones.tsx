@@ -65,7 +65,7 @@ export default function Aprobaciones({ open, onClose, cursoId, proceso, onCambio
   const puedeRevisarMonitor = esMonitor && proceso.estado === 'revision_monitor'
   const puedeRevisarDda = esDda && proceso.estado === 'revision_dda'
   const rolRevisor = puedeRevisarMonitor ? 'monitor_ea' : puedeRevisarDda ? 'dda' : null
-  const puedeHabilitar = esMonitor && proceso.estado !== 'en_edicion'
+  const puedeHabilitar = esMonitor && (proceso.estado === 'revision_dda' || proceso.estado === 'aprobado')
 
   return (
     <Drawer

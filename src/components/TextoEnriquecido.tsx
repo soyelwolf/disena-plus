@@ -19,6 +19,8 @@ interface Props {
   placeholder?: string
   /** Compact toolbar for narrow cells (criteria grid). */
   compacto?: boolean
+  /** Shown at the right of the label (e.g. the comments badge). */
+  accion?: ReactNode
 }
 
 const COMANDOS = ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList'] as const
@@ -32,7 +34,7 @@ const TABLA_NUEVA =
   '</tbody></table><p><br></p>'
 
 export default function TextoEnriquecido(props: Props) {
-  const { id, label, value, onChange, max, error, readOnly, minHeight = 120, placeholder = 'Ingresa la información', compacto } = props
+  const { id, label, value, onChange, max, error, readOnly, minHeight = 120, placeholder = 'Ingresa la información', compacto, accion } = props
   const ref = useRef<HTMLDivElement>(null)
   const ultimo = useRef<string | null>(null)
   const [activos, setActivos] = useState<Set<Comando>>(new Set())
@@ -164,7 +166,12 @@ export default function TextoEnriquecido(props: Props) {
   if (readOnly) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {label && <span className="field-label" style={{ marginBottom: 0 }}>{label}</span>}
+        {(label || accion) && (
+          <div className="coment-label">
+            {label && <span className="field-label" style={{ marginBottom: 0 }}>{label}</span>}
+            {accion}
+          </div>
+        )}
         <div className="readonly-box rte-view" dangerouslySetInnerHTML={{ __html: aHtml(value) || '—' }} />
       </div>
     )
@@ -172,10 +179,15 @@ export default function TextoEnriquecido(props: Props) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {label && (
-        <label className="field-label" htmlFor={id} style={{ marginBottom: 0 }} onClick={() => ref.current?.focus()}>
-          {label}
-        </label>
+      {(label || accion) && (
+        <div className="coment-label">
+          {label && (
+            <label className="field-label" htmlFor={id} style={{ marginBottom: 0 }} onClick={() => ref.current?.focus()}>
+              {label}
+            </label>
+          )}
+          {accion}
+        </div>
       )}
       <div className={`rte${mensaje ? ' has-error' : ''}${foco ? ' focused' : ''}`}>
         <div className="rte-toolbar" role="toolbar" aria-label={`Formato${label ? ` de ${label}` : ''}`}>

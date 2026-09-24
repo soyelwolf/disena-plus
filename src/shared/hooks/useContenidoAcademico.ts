@@ -43,8 +43,10 @@ export function usePuedeEditar(proceso: ProcesoCurso | null, instrumento: 'consi
   const { can } = useAuth()
   if (!can('editar_contenido')) return { puede: false, motivo: 'Tu rol solo permite ver esta información.' }
   if (!proceso) return { puede: false, motivo: '' }
-  if (proceso.estado === 'aprobado') return { puede: false, motivo: 'El proceso fue aprobado por DDA y está cerrado.' }
-  if (proceso.estado !== 'en_edicion') return { puede: false, motivo: 'La edición está deshabilitada mientras los aprobadores revisan la información.' }
-  if (proceso.finalizado[instrumento]) return { puede: false, motivo: 'Finalizaste la edición. Solo el Monitor EA puede habilitarla de nuevo.' }
+  // "Finalizar edición general" only notifies the approvers; screens freeze
+  // only once there is an approval check (Monitor EA, then DDA).
+  void instrumento
+  if (proceso.estado === 'aprobado') return { puede: false, motivo: 'El proceso fue aprobado por el Monitor EA y DDA, y está cerrado. Solo el Monitor EA puede habilitar la edición.' }
+  if (proceso.estado === 'revision_dda') return { puede: false, motivo: 'El Monitor EA aprobó el proceso y está en revisión de DDA. Solo el Monitor EA puede habilitar la edición.' }
   return { puede: true, motivo: '' }
 }

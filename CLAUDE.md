@@ -73,7 +73,7 @@ importacion/              datos personales para importar (NO se sube a Git)
 ## Base de datos (Supabase)
 
 Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.sql` →
-`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` → `schema-unidades-sesiones.sql` → `schema-catalogo-elementos.sql` → `schema-columnas-sharepoint.sql` (todos re-ejecutables).
+`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` → `schema-unidades-sesiones.sql` → `schema-catalogo-elementos.sql` → `schema-columnas-sharepoint.sql` → `schema-comentarios.sql` (todos re-ejecutables).
 
 - Catálogo: `dpl_curso`, `dpl_unidad` (logro específico; Elemento_Catalogo → `dpl_catalogoelemento` = CATALOGO_ELEMENTOS), `dpl_sesion` (todas las sesiones del sílabo; las que tienen `dpl_elemento` son elementos de evaluación),
   `dpl_programa`, `dpl_cursoprograma`, `dpl_competencia`, `dpl_cursoprogramacompetencia`.
@@ -97,10 +97,14 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 - Rúbrica: **una sola por elemento**, idéntica en todos los programas; por programa solo cambian
   las competencias marcadas. En cada elemento la suma de "Estándar esperado" = **20**. Las alertas
   aparecen solo tras pulsar "Finalizar edición general".
-- Flujo: el docente finaliza cada instrumento; cuando todos están finalizados pasa a revisión.
-  Aprueba **Monitor EA** y luego **DDA** (DDA cierra y congela todo). Pueden devolver con
-  comentarios. Solo **Monitor EA** puede "Habilitar edición" (incluso tras DDA); la aprobación
-  vuelve a empezar.
+- Flujo: "Finalizar edición general" **solo avisa** a Monitor EA y DDA que pueden revisar; se
+  sigue editando. Las pantallas se bloquean **solo con un check de aprobación**: desde que aprueba
+  **Monitor EA** (revisión DDA) y al aprobar **DDA** (cerrado). Pueden devolver con comentarios.
+  Solo **Monitor EA** puede "Habilitar edición"; la aprobación vuelve a empezar.
+- Comentarios por ítem (`dpl_comentario`: entidad + campo, hilo con `dpl_padreid`, cita
+  resaltada, resuelto): Monitor EA/DDA abren comentarios en cualquier momento (no bloquean);
+  docente y asesor responden; solo el autor marca "resuelto". Ícono: + / 1 / 2 (lados con
+  pendientes) / ✓. Componente `Comentarios.tsx` (BotonComentarios, ZonaComentable, PanelComentarios).
 - Activación (como los flujos CONSOLIDADO_INPUTS_* de Power Automate): el admin habilita procesos por curso (`Permite_*`); el docente pulsa **ACTIVAR** una sola vez por proceso (Consignas primero). Consignas crea una consigna por elemento; cada instrumento crea su cabecera por elemento cuya consigna lo eligió (Rúbrica = `rúbrica` + `matriz con rúbrica`). Estado ACTIVADO = columnas `dpl_ia_*_corrido`. Lógica en `activarProceso` (`academico.ts`).
 - Visibilidad: "Mis cursos" muestra solo los cursos asignados (también al admin, que puede marcar "Ver todos").
 - Roles: administrador, docente, asesor, monitor_ea, monitor_qa, monitor_disena, dda (se pueden

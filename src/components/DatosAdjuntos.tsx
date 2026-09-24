@@ -2,7 +2,7 @@
 // open in the viewer, everything can be downloaded. Files live in the Storage
 // bucket "adjuntos" under consigna/<consignaId>/.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../shared/supabaseClient'
 import Icon from './Icon'
 import VisorPdf from './VisorPdf'
@@ -26,7 +26,7 @@ const limpio = (n: string) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace
 const tamanoTexto = (b: number | null) => (b === null ? '' : b > 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`)
 const esPdf = (n: string) => /\.pdf$/i.test(n)
 
-export default function DatosAdjuntos({ consignaId, editable, titulo }: { consignaId: string | null; editable: boolean; titulo: string }) {
+export default function DatosAdjuntos({ consignaId, editable, titulo, accion }: { consignaId: string | null; editable: boolean; titulo: string; accion?: ReactNode }) {
   const toast = useToast()
   const [archivos, setArchivos] = useState<Archivo[] | null>(null)
   const [subiendo, setSubiendo] = useState(false)
@@ -88,7 +88,7 @@ export default function DatosAdjuntos({ consignaId, editable, titulo }: { consig
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div className="row-between">
-        <span className="field-label" style={{ marginBottom: 0 }}>Datos adjuntos</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}><span className="field-label" style={{ marginBottom: 0 }}>Datos adjuntos</span>{accion}</span>
         {editable && carpeta && (
           <>
             <input ref={input} type="file" multiple accept={ACEPTADOS} className="sr-only" onChange={e => { subir(e.target.files); e.target.value = '' }} />

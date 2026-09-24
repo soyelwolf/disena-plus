@@ -683,14 +683,29 @@ export async function habilitarEdicion(cursoId: string, usuario: string, comenta
 
 // ── Comments ─────────────────────────────────────────────────────────────────
 
+/** Who speaks in a thread: the two approver sides, or the teaching team replying. */
+export type LadoComentario = 'monitor_ea' | 'dda' | 'docente'
+
 export interface Comentario {
   id: string
   entidadId: string
+  /** Field of the record; 'general' for comments on the whole record. */
+  campo: string
+  padreId: string | null
+  lado: LadoComentario
   autor: string
+  correo: string
   rol: string
   texto: string
   fecha: string
+  cita: string | null
+  textoItem: string | null
+  resuelto: boolean
+  resueltoPor: string | null
+  fechaResuelto: string | null
 }
+
+export const CAMPO_GENERAL = 'general'
 
 export async function getComentarios(cursoId: string, instrumento: InstrumentoFlujo): Promise<Comentario[]> {
   const { data, error } = await supabase
@@ -704,30 +719,90 @@ export async function getComentarios(cursoId: string, instrumento: InstrumentoFl
   return (data ?? []).map(c => ({
     id: c.dpl_comentarioid,
     entidadId: c.dpl_entidadid,
+    campo: c.dpl_campo ?? CAMPO_GENERAL,
+    padreId: c.dpl_padreid ?? null,
+    lado: (c.dpl_lado ?? (/dda/i.test(c.dpl_rol ?? '') ? 'dda' : 'monitor_ea')) as LadoComentario,
     autor: c.dpl_autor ?? '',
+    correo: c.dpl_correoautor ?? '',
     rol: c.dpl_rol ?? '',
     texto: c.dpl_texto,
     fecha: c.createdon,
+    cita: c.dpl_cita ?? null,
+    textoItem: c.dpl_textoitem ?? null,
+    resuelto: !!c.dpl_resuelto,
+    resueltoPor: c.dpl_resueltopor ?? null,
+    fechaResuelto: c.dpl_fecharesuelto ?? null,
   }))
 }
+
+const FALTA_SCRIPT_COMENTARIOS = 'Falta ejecutar supabase/schema-comentarios.sql en Supabase.'
 
 export async function agregarComentario(params: {
   cursoId: string
   instrumento: InstrumentoFlujo
   entidadId: string
+  campo: string
+  padreId?: string | null
+  lado: LadoComentario
   autor: string
+  correo: string
   rol: string
   texto: string
+  cita?: string | null
+  textoItem?: string | null
 }): Promise<void> {
   const { error } = await supabase.from('dpl_comentario').insert({
     dpl_cursoid: params.cursoId,
     dpl_instrumento: params.instrumento,
     dpl_entidadid: params.entidadId,
+    dpl_campo: params.campo === CAMPO_GENERAL ? null : params.campo,
+    dpl_padreid: params.padreId ?? null,
+    dpl_lado: params.lado,
     dpl_autor: params.autor,
+    dpl_correoautor: params.correo,
     dpl_rol: params.rol,
     dpl_texto: params.texto,
+    dpl_cita: params.cita ?? null,
+    dpl_textoitem: params.textoItem ?? null,
   })
+  if (error && /column|schema cache/i.test(error.message)) throw new Error(FALTA_SCRIPT_COMENTARIOS)
   fail(error, 'No se pudo guardar el comentario.')
+}
+
+/** Only the author of a comment marks it resolved (or opens it again). */
+export async function resolverComentario(id: string, resuelto: boolean, usuario: string): Promise<void> {
+  const { error } = await supabase
+    .from('dpl_comentario')
+    .update({ dpl_resuelto: resuelto, dpl_resueltopor: resuelto ? usuario : null, dpl_fecharesuelto: resuelto ? new Date().toISOString() : null })
+    .eq('dpl_comentarioid', id)
+  if (error && /column|schema cache/i.test(error.message)) throw new Error(FALTA_SCRIPT_COMENTARIOS)
+  fail(error, 'No se pudo actualizar el comentario.')
+}
+
+export interface EstadoComentarios {
+  /** Approver sides (Monitor EA, DDA) with open comments: 0, 1 or 2. */
+  lados: number
+  abiertos: number
+  resueltos: number
+}
+
+/** Badge state of one item (or of a whole record when campo is omitted). */
+export function estadoComentarios(comentarios: Comentario[], entidadId: string, campo?: string): EstadoComentarios {
+  const raices = comentarios.filter(c => !c.padreId && c.entidadId === entidadId && (campo === undefined || c.campo === campo))
+  const abiertos = raices.filter(c => !c.resuelto)
+  return {
+    lados: new Set(abiertos.map(c => c.lado)).size,
+    abiertos: abiertos.length,
+    resueltos: raices.length - abiertos.length,
+  }
+}
+
+/** Side the signed-in person speaks for. */
+export function ladoDeUsuario(roles: string[]): LadoComentario {
+  if (roles.includes('dda') && !roles.includes('monitor_ea')) return 'dda'
+  if (roles.some(r => r === 'monitor_ea' || r === 'monitor_qa' || r === 'monitor_disena')) return 'monitor_ea'
+  if (roles.includes('dda')) return 'dda'
+  return 'docente'
 }
 
 /** "hace 3 días" style relative time. */

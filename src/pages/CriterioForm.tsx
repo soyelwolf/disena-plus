@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
+import { CAMPO_GENERAL, PanelComentarios, type FiltroComentarios } from '../components/Comentarios'
 import TextoEnriquecido from '../components/TextoEnriquecido'
 import { estaVacio, longitud } from '../shared/textoRico'
 import { Breadcrumbs, Cargando, CursoHeader, ErrorPanel, Modal, SavingOverlay, useToast } from '../components/ui'
@@ -10,9 +11,11 @@ import {
   NIVELES,
   crearCriterios,
   guardarRubricaCompleta,
+  getComentarios,
   getCriteriosDeElemento,
   PUNTAJE_OBJETIVO,
   totalEstandar,
+  type Comentario,
   type CriterioRow,
   type CriterioCampos,
 } from '../shared/academico'
@@ -93,6 +96,13 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
   const [guardando, setGuardando] = useState(false)
   // Criteria the element already has: new ones continue their numbering.
   const [existentes, setExistentes] = useState<CriterioRow[]>([])
+  // Reviewers' comments, so the teacher can address them while editing.
+  const [comentarios, setComentarios] = useState<Comentario[]>([])
+  const [filtro, setFiltro] = useState<FiltroComentarios | null>(null)
+  const cargarComentarios = () => {
+    if (cursoId) getComentarios(cursoId, 'rubricas').then(setComentarios).catch(() => setComentarios([]))
+  }
+  useEffect(cargarComentarios, [cursoId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     document.title = `${editando ? 'Editar rúbrica' : 'Agregar criterio'} — Diseña+`
@@ -198,6 +208,8 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
               errores={intento ? errores[i] : {}}
               onChange={(k, v) => setCampo(i, k, v)}
               onEliminar={filas.length > 1 ? () => quitarFila(i) : undefined}
+              pendientes={ids[i] ? comentarios.filter(k => !k.padreId && !k.resuelto && k.entidadId === ids[i]).length : 0}
+              onComentarios={() => ids[i] && setFiltro({ entidadId: ids[i]! })}
             />
           </div>
         ))}
@@ -229,6 +241,26 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
       >
         {editando ? 'No se guardará ningún cambio de la rúbrica.' : undefined}
       </Modal>
+      <PanelComentarios
+        filtro={filtro}
+        onClose={() => setFiltro(null)}
+        titulo={`Comentarios: Criterio N°${filtro?.entidadId ? ids.indexOf(filtro.entidadId) + 1 : ''}`}
+        cursoId={ctx.id}
+        instrumento="rubricas"
+        comentarios={comentarios}
+        onCambio={cargarComentarios}
+        etiquetaItem={(_, campo) =>
+          campo === 'dpl_criterio' ? 'Nombre del criterio' : campo === 'dpl_definicioncriterio' ? 'Descripción del criterio' : campo === CAMPO_GENERAL ? 'General' : NIVELES.find(n => n.texto === campo)?.label ?? campo
+        }
+        valorItem={(id, campo) => {
+          const f = filas[ids.indexOf(id)]
+          if (!f || campo === CAMPO_GENERAL) return null
+          const n = NIVELES.find(k => k.texto === campo)
+          return `${f[campo as keyof CriterioCampos] ?? ''}${n ? ` ${f[n.puntaje]}` : ''}`
+        }}
+        puedeComentar={false}
+        puedeResponder
+      />
       <SavingOverlay show={guardando} />
     </div>
   )
@@ -264,9 +296,11 @@ interface FilaProps {
   errores: Partial<Record<keyof CriterioCampos, string>>
   onChange: (k: keyof CriterioCampos, v: string) => void
   onEliminar?: () => void
+  pendientes?: number
+  onComentarios?: () => void
 }
 
-function FilaCriterio({ numero, fila, errores, onChange, onEliminar }: FilaProps) {
+function FilaCriterio({ numero, fila, errores, onChange, onEliminar, pendientes = 0, onComentarios }: FilaProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const [bordes, setBordes] = useState({ inicio: true, fin: false })
   const actualizar = () => {
@@ -301,6 +335,11 @@ function FilaCriterio({ numero, fila, errores, onChange, onEliminar }: FilaProps
               <td style={{ textAlign: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
                   <b>N°{numero}</b>
+                  {pendientes > 0 && (
+                    <button className="chip chip-pt" style={{ display: 'inline-flex', gap: 4, border: 'none', cursor: 'pointer' }} title="Ver comentarios pendientes" onClick={onComentarios}>
+                      <Icon name="comment" size={13} />{pendientes}
+                    </button>
+                  )}
                   {onEliminar && (
                     <button className="icon-btn" aria-label={`Eliminar criterio ${numero}`} onClick={onEliminar}>
                       <Icon name="trash" size={20} />
