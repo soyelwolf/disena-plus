@@ -196,7 +196,7 @@ export async function getCursoContexto(cursoId: string): Promise<CursoContexto> 
     permite: {
       consignas: !!curso.dpl_permiteconsignas,
       rubrica: !!curso.dpl_permiterubricas,
-      matriz: !!curso.dpl_permitematrizsn || !!curso.dpl_permitematrizcn,
+      matriz: !!curso.dpl_permitematrizsn,
       lista: !!curso.dpl_permitelistacotejo,
       escala: !!curso.dpl_permiteescala,
     },
@@ -881,7 +881,8 @@ export interface EstadoActivacion {
 const COLUMNA_ACTIVADO: Record<ProcesoActivable, string[]> = {
   consignas: ['dpl_ia_consigna_corrido'],
   rubrica: ['dpl_ia_rubrica_corrido'],
-  matriz: ['dpl_ia_matrizsinrubrica_corrido', 'dpl_ia_matrizconrubrica_corrido'],
+  // Permite_Matriz_CN / IA_ParaMatrizConRubrica are no longer used: one Matriz process (SN).
+  matriz: ['dpl_ia_matrizsinrubrica_corrido'],
   lista: ['dpl_ia_lista_corrido'],
   escala: ['dpl_ia_escala_corrido'],
 }
