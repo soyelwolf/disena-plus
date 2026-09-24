@@ -114,11 +114,11 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 2. Definir diferencia entre "Persona Asignada" y "DocenteyAsesor" (hoy ambos editan).
 3. Rehacer Matriz, Lista de cotejo y Escala con el diseño del Figma.
 4. Ingreso real por enlace al correo (Supabase Auth) y cerrar RLS por rol.
-5. Publicar: subir a GitHub (repositorio privado) y desplegar en Vercel.
+5. Publicar: desplegar en Vercel (el código ya está en GitHub).
 6. Tutoriales, Manuales, Lineamientos, Soporte; generación con IA.
 
 ## Convenciones
 
 - Textos de la interfaz en español; código y comentarios en inglés, como el código existente.
-- Trabajar en la rama `rediseno-figma`; commits con mensaje descriptivo.
+- Rama principal: `master` (repositorio privado https://github.com/soyelwolf/disena-plus). Commits con mensaje descriptivo y luego `git push`.
 - No subir `.env.local`, `importacion/` ni datos personales.
