@@ -16,7 +16,6 @@ import {
   getComentarios,
   getCriteriosDeElemento,
   PUNTAJE_OBJETIVO,
-  totalEstandar,
   type Comentario,
   type CriterioRow,
   type CriterioCampos,
@@ -214,11 +213,11 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>{titulo}</h1>
       <CursoHeader titulo={elemento.nombre} curso={ctx.nombre} tipoEnsenanza={ctx.tipoEnsenanza} programas={ctx.programas} />
 
-      {editando ? (
-        <ResumenRubrica filas={filas} eliminados={eliminados.length} />
-      ) : (
-        existentes.length > 0 && <ResumenExistentes existentes={existentes} nuevos={filas} />
-      )}
+      <ResumenRubrica
+        criterios={rubricaResultante}
+        eliminados={eliminados.length}
+        nota={!editando && existentes.length > 0 ? `Este elemento ya tiene ${existentes.length} ${existentes.length === 1 ? 'criterio' : 'criterios'}; los nuevos se agregan desde el N°${existentes.length + 1}.` : null}
+      />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {filas.map((f, i) => (
@@ -310,25 +309,48 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
   )
 }
 
-/** Live total of the whole rubric being edited vs the 20 points. */
-function ResumenRubrica({ filas, eliminados }: { filas: Fila[]; eliminados: number }) {
-  const total = filas.reduce((s, f) => s + (Number(f.dpl_puntajeestandar) || 0), 0)
-  const falta = PUNTAJE_OBJETIVO - total
+/**
+ * Live check of the whole rubric (like the Power Apps box): what each level
+ * adds up to and whether the rules hold, updated while typing.
+ */
+function ResumenRubrica({ criterios, eliminados, nota }: { criterios: Array<Partial<Record<keyof CriterioCampos, unknown>>>; eliminados: number; nota?: string | null }) {
+  const { minCriterios, maxCriterios, inicialMin, inicialMax } = REGLAS_RUBRICA
+  const num = (v: unknown) => {
+    const t = v === null || v === undefined ? '' : String(v).trim()
+    return /^\d+(\.\d+)?$/.test(t) ? Number(t) : 0
+  }
+  const suma = (k: keyof CriterioCampos) => Math.round(criterios.reduce((s, c) => s + num(c[k]), 0) * 100) / 100
+  const estandar = suma('dpl_puntajeestandar')
+  const inicial = suma('dpl_puntajeinicial')
+  const n = criterios.length
+  const falta = Math.round((PUNTAJE_OBJETIVO - estandar) * 100) / 100
+  // Per-criterion problems (sums and count are shown as chips above).
+  const porCriterio = advertenciasRubrica(criterios).filter(a => a.startsWith('Criterio N°'))
+
+  const Chip = ({ ok, texto }: { ok: boolean | null; texto: string }) => (
+    <span className={`regla-chip ${ok === null ? '' : ok ? 'ok' : 'mal'}`}>
+      {ok !== null && <Icon name={ok ? 'checkCircle' : 'alert'} size={14} />}
+      {texto}
+    </span>
+  )
+
   return (
-    <div className="panel" style={{ padding: '14px 18px', border: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 5 }}>
-      <div className="row-between" style={{ flexWrap: 'wrap', gap: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 700 }}>
-          {filas.length} {filas.length === 1 ? 'criterio' : 'criterios'}
-          {eliminados > 0 && (
-            <span style={{ fontWeight: 400, color: 'var(--color-danger)' }}> · {eliminados} se {eliminados === 1 ? 'quitará' : 'quitarán'} al guardar</span>
-          )}
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-          Estándar esperado: <span className="chip chip-pt">{total} de {PUNTAJE_OBJETIVO} pt</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: falta === 0 ? 'var(--color-success)' : falta < 0 ? 'var(--color-danger)' : 'var(--color-warning)' }}>
-            {falta === 0 ? '¡Completo!' : falta > 0 ? `Faltan ${falta} pt` : `Te pasaste por ${-falta} pt`}
-          </span>
-        </span>
+    <div className="panel resumen-reglas">
+      <div className="regla-fila">
+        <Chip ok={n >= minCriterios && n <= maxCriterios} texto={`${n} ${n === 1 ? 'criterio' : 'criterios'} (${minCriterios} a ${maxCriterios})`} />
+        <Chip ok={falta === 0} texto={`Estándar: ${estandar} / ${PUNTAJE_OBJETIVO}${falta > 0 ? ` (falta ${falta})` : falta < 0 ? ` (sobra ${-falta})` : ''}`} />
+        <Chip ok={null} texto={`En proceso 2: ${suma('dpl_puntajeenproceso2')}`} />
+        <Chip ok={null} texto={`En proceso 1: ${suma('dpl_puntajeenproceso1')}`} />
+        <Chip ok={inicial >= inicialMin && inicial <= inicialMax} texto={`Inicial: ${inicial} (${inicialMin} a ${inicialMax})`} />
+      </div>
+      <div className="regla-detalle">
+        {porCriterio.length === 0 ? (
+          <span className="regla-ok"><Icon name="checkCircle" size={14} />Puntajes completos y en forma descendente en todos los criterios</span>
+        ) : (
+          porCriterio.map(a => <span key={a} className="regla-mal"><Icon name="alert" size={14} />{a}</span>)
+        )}
+        {eliminados > 0 && <span className="regla-mal">{eliminados} {eliminados === 1 ? 'criterio se quitará' : 'criterios se quitarán'} al guardar</span>}
+        {nota && <span style={{ color: 'var(--color-text-muted)' }}>{nota}</span>}
       </div>
     </div>
   )
@@ -446,36 +468,6 @@ function Area(props: { value: string; max: number; error?: string; onChange: (v:
         <span style={{ color: excedido ? 'var(--color-danger)' : 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
           {excedido ? `-${value.length - max}` : value.length}/{max}
         </span>
-      </div>
-    </div>
-  )
-}
-
-/** Existing criteria of the element and how the new ones move the 20-point total. */
-function ResumenExistentes({ existentes, nuevos }: { existentes: CriterioRow[]; nuevos: Fila[] }) {
-  const actual = totalEstandar(existentes)
-  const sumaNuevos = nuevos.reduce((s, f) => s + (Number(f.dpl_puntajeestandar) || 0), 0)
-  const total = actual + sumaNuevos
-  const falta = PUNTAJE_OBJETIVO - total
-  return (
-    <div className="panel" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid var(--color-border)' }}>
-      <div className="row-between" style={{ flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 14, fontWeight: 700 }}>
-          Este elemento ya tiene {existentes.length} {existentes.length === 1 ? 'criterio' : 'criterios'}; los nuevos se agregan desde el N°{existentes.length + 1}.
-        </span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
-          Estándar esperado: <span className="chip chip-pt">{total} de {PUNTAJE_OBJETIVO} pt</span>
-          <span style={{ fontSize: 13, fontWeight: 700, color: falta === 0 ? 'var(--color-success)' : falta < 0 ? 'var(--color-danger)' : 'var(--color-warning)' }}>
-            {falta === 0 ? '¡Completo!' : falta > 0 ? `Faltan ${falta} pt` : `Te pasaste por ${-falta} pt`}
-          </span>
-        </span>
-      </div>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-        {existentes.map(c => (
-          <span key={c.dpl_rubricacriterioid} className="persona-chip" style={{ fontSize: 13 }}>
-            N°{c.dpl_orden} · {c.dpl_criterio || 'Sin nombre'} · {Number(c.dpl_puntajeestandar ?? 0)} pt
-          </span>
-        ))}
       </div>
     </div>
   )

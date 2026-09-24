@@ -673,3 +673,12 @@ body.con-panel-comentarios .shell-main { padding-right: 440px; }
 .rail-item.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
 .rail-dot { position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%; background: #e0b000; border: 2px solid #fff; }
 @media (max-width: 1000px) { .consignas-rail { flex-direction: row; width: 100%; position: static; flex-wrap: wrap; } }
+
+.resumen-reglas { position: sticky; top: calc(var(--header-height) + 4px); z-index: 5; padding: 12px 16px; border: 1px solid var(--color-border); display: flex; flex-direction: column; gap: 8px; }
+.regla-fila { display: flex; flex-wrap: wrap; gap: 8px; }
+.regla-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: #eef0f2; color: #3d434a; }
+.regla-chip.ok { background: #e3f4ea; color: #0a7a3e; }
+.regla-chip.mal { background: #fff4e0; color: #8a4b00; }
+.regla-detalle { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.regla-ok { display: inline-flex; align-items: center; gap: 6px; color: #0a7a3e; font-weight: 700; }
+.regla-mal { display: inline-flex; align-items: center; gap: 6px; color: #8a4b00; }
