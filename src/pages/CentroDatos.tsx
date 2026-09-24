@@ -22,6 +22,7 @@ import {
   actualizarCelda,
   cargarRelaciones,
   cargarTabla,
+  CONTEXTO,
   columnasVisibles,
   descargarCsv,
   eliminarFila,
@@ -211,6 +212,13 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
         const id = rel?.cursoDe(f)
         return id ? rel?.cursoTexto.get(id) ?? '' : ''
       }
+      if (c === 'ctx_instrumentotexto') return String(f.dpl_instrumento ?? '')
+      if (CONTEXTO[c]) {
+        const v = rel ? CONTEXTO[c].valor(rel.contextoDe(f)) : null
+        if (v === null || v === undefined) return ''
+        if (typeof v === 'boolean') return v ? 'Sí' : 'No'
+        return typeof v === 'string' && esHtml(v) ? textoPlano(v) : String(v)
+      }
       const extra = extraPorKey.get(c)
       if (extra) return extra.texto(f)
       const v = f[c]
@@ -222,7 +230,8 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
     },
     [nombres, rel, extraPorKey],
   )
-  const etiqueta = (c: string) => (c === ID_CURSO_VIRTUAL ? 'ID_CURSO' : extraPorKey.get(c)?.label ?? etiquetaColumna(c, cfg))
+  const etiqueta = (c: string) =>
+    c === ID_CURSO_VIRTUAL ? cfg.etiquetas?.[ID_CURSO_VIRTUAL] ?? 'ID_CURSO' : CONTEXTO[c]?.etiqueta ?? extraPorKey.get(c)?.label ?? etiquetaColumna(c, cfg)
 
   useEffect(() => {
     // Re-read when the parent signals its extra columns changed (e.g. assignments saved).
@@ -380,6 +389,8 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
                   const extra = extraPorKey.get(c)
                   if (extra) return <td key={c}>{extra.render(f)}</td>
                   if (c === ID_CURSO_VIRTUAL) return <td key={c}><span className="celda" style={{ fontWeight: 700 }}>{texto(f, c)}</span></td>
+                  // Course / unit / element data: read only here (edit it in its own list).
+                  if (CONTEXTO[c]) return <td key={c}><span className="celda celda-contexto" title={`${texto(f, c)} — viene de su propia lista`}>{texto(f, c)}</span></td>
                   const v = f[c]
                   if (typeof v === 'boolean')
                     return (

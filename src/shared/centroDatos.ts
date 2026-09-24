@@ -27,7 +27,48 @@ export interface TablaConfig {
   opciones?: Record<string, string[]>
   /** The whole list is read only (e.g. the IA BACKUP lists: they must stay as generated). */
   soloLecturaTabla?: boolean
+  /** Course / unit / element columns repeated on every row (keys of CONTEXTO). */
+  contexto?: string[]
 }
+
+/**
+ * Course / unit / element data repeated on every row, like the SharePoint lists
+ * (NOMBRE_CURSO, COD_CATALAGO…). Read from the related lists, so they are always
+ * current and read only here. Keys start with "ctx_" and can be placed in "orden".
+ */
+export interface Contexto {
+  curso: Record<string, unknown> | null
+  unidad: Record<string, unknown> | null
+  sesion: Record<string, unknown> | null
+  carrera: string
+  rubricaRealizada: boolean | null
+}
+export const CONTEXTO: Record<string, { etiqueta: string; valor: (c: Contexto) => unknown }> = {
+  ctx_nombrecurso: { etiqueta: 'NOMBRE_CURSO', valor: c => c.curso?.dpl_nombrecurso },
+  ctx_codigocatalogo: { etiqueta: 'COD_CATALAGO', valor: c => c.curso?.dpl_codigocatalogo },
+  ctx_logrocurso: { etiqueta: 'LOGRO_CURSO', valor: c => c.curso?.dpl_logrocurso },
+  ctx_idsesion: { etiqueta: 'ID_SESION_TEXT', valor: c => c.sesion?.dpl_idsesiontext },
+  ctx_idunidad: { etiqueta: 'ID_UNIDAD_TEXT', valor: c => c.unidad?.dpl_idunidadtext },
+  ctx_nombreunidad: { etiqueta: 'NOMBRE_UNIDAD', valor: c => c.unidad?.dpl_nombreunidad },
+  ctx_abreviatura: { etiqueta: 'ABREVIATURA', valor: c => c.sesion?.dpl_abreviatura ?? c.unidad?.dpl_elementocatalogoabreviatura },
+  ctx_unidad: { etiqueta: 'UNIDAD', valor: c => c.unidad?.dpl_numerounidad },
+  ctx_elemento: { etiqueta: 'ELEMENTO', valor: c => c.sesion?.dpl_elemento },
+  ctx_logrounidad: { etiqueta: 'LOGRO_UNIDAD', valor: c => c.unidad?.dpl_logroespecifico },
+  ctx_carrera: { etiqueta: 'CARRERA', valor: c => c.carrera },
+  ctx_realizadorubrica: { etiqueta: 'RealizadoRúbrica', valor: c => c.rubricaRealizada },
+  ctx_instrumentotexto: { etiqueta: 'INSTRUMENTO_TEXT', valor: () => undefined }, // filled from the row itself (see CentroDatos)
+}
+/** The course columns every instrument list of SharePoint starts with. */
+const CONTEXTO_INSTRUMENTO = ['ctx_nombrecurso', 'ctx_codigocatalogo', 'ctx_logrocurso', 'ctx_idsesion', 'ctx_idunidad', 'ctx_nombreunidad', 'ctx_unidad', 'ctx_abreviatura', 'ctx_elemento', 'ctx_logrounidad', 'ctx_carrera']
+
+/** CONSOLIDADO_CONSIGNAS in the exact order of the SharePoint export (29 columns). */
+const ORDEN_CONSIGNAS = [
+  'ctx_nombrecurso', 'ctx_codigocatalogo', 'ctx_logrocurso', 'dpl_idconsignatext', 'ctx_idsesion', 'ctx_idunidad',
+  'dpl_modeloia', 'dpl_estado', 'dpl_herramientaia', 'ctx_nombreunidad', 'dpl_json', 'dpl_queseevaluara', 'ctx_abreviatura',
+  'ctx_unidad', 'ctx_elemento', 'dpl_resultadogpt', 'ctx_logrounidad', 'dpl_indicaciongeneral', 'dpl_indicacionesespecificas',
+  'dpl_recomendaciones', 'dpl_anexo', 'dpl_instrumento', 'ctx_carrera', 'dpl_realizado', 'dpl_usuarioregistro',
+  'dpl_fecharegistro', 'ctx_realizadorubrica', 'ctx_instrumentotexto',
+]
 
 /** Headers shared by the five BACKUP lists. */
 const ETIQUETAS_BACKUP: Record<string, string> = {
@@ -127,12 +168,17 @@ export const TABLAS: TablaConfig[] = [
       'dpl_actividad', 'dpl_elemento', 'dpl_abreviatura', 'dpl_observacion', 'dpl_peso', 'dpl_tipoobservacion', 'dpl_tieneelemento', 'dpl_realizado',
     ],
   },
-  { grupo: 'Consignas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas', etiqueta: 'dpl_idconsignatext', orden: ['dpl_idconsignatext', 'dpl_instrumento'], opciones: { dpl_instrumento: OPCIONES_INSTRUMENTO_CONSIGNA } },
+  {
+    grupo: 'Consignas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas (mismo orden que SharePoint)', etiqueta: 'dpl_idconsignatext',
+    orden: ORDEN_CONSIGNAS, contexto: [...CONTEXTO_INSTRUMENTO, 'ctx_realizadorubrica', 'ctx_instrumentotexto'],
+    etiquetas: { __id_curso__: 'ID_CURSO_TEXT', dpl_realizado: 'RealizadoConsigna', dpl_json: 'JSON', dpl_resultadogpt: 'RESULTADO_GPT' },
+    opciones: { dpl_instrumento: OPCIONES_INSTRUMENTO_CONSIGNA },
+  },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Criterios de las rúbricas', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'REL_RUBRICA_COMPETENCIAS', descripcion: 'Competencias elegidas por criterio' },
-  { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz (con y sin rúbrica)', etiquetas: ETIQUETAS_MATRIZ, orden: ORDEN_MATRIZ },
-  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo', etiquetas: ETIQUETAS_LISTA, orden: ORDEN_LISTA },
-  { grupo: 'Escala de valoración', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'ESCALA_DE_VALORACION', descripcion: 'Indicadores de la escala', etiquetas: ETIQUETAS_ESCALA, orden: ORDEN_ESCALA, ocultas: ESCALA_ANTIGUA },
+  { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz (con y sin rúbrica)', etiquetas: { __id_curso__: 'ID_CURSO_TEXT', ...ETIQUETAS_MATRIZ }, orden: [...CONTEXTO_INSTRUMENTO, ...ORDEN_MATRIZ], contexto: CONTEXTO_INSTRUMENTO },
+  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo', etiquetas: { __id_curso__: 'ID_CURSO_TEXT', ...ETIQUETAS_LISTA }, orden: [...CONTEXTO_INSTRUMENTO, ...ORDEN_LISTA], contexto: CONTEXTO_INSTRUMENTO },
+  { grupo: 'Escala de valoración', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'ESCALA_DE_VALORACION', descripcion: 'Indicadores de la escala', etiquetas: { __id_curso__: 'ID_CURSO_TEXT', ...ETIQUETAS_ESCALA }, orden: [...CONTEXTO_INSTRUMENTO, ...ORDEN_ESCALA], ocultas: ESCALA_ANTIGUA, contexto: CONTEXTO_INSTRUMENTO },
   // IA BACKUP lists: the proposal exactly as the IA generated it (read only), to compare with the final version.
   { grupo: 'Consignas', tabla: 'dpl_consigna_backup', pk: 'dpl_backupid', titulo: 'CONSOLIDADO_CONSIGNAS_BACKUP', descripcion: 'Propuesta IA inicial de cada consigna', etiquetas: ETIQUETAS_BACKUP, orden: [...ORDEN_BACKUP, 'dpl_idconsignatext'], soloLecturaTabla: true },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio_backup', pk: 'dpl_backupid', titulo: 'CONSOLIDADO_RUBRICAS_BACKUP', descripcion: 'Propuesta IA inicial de los criterios', etiquetas: ETIQUETAS_BACKUP, orden: [...ORDEN_BACKUP, 'dpl_orden', 'dpl_criterio'], soloLecturaTabla: true },
@@ -302,7 +348,7 @@ export function etiquetaColumna(col: string, cfg?: TablaConfig): string {
 }
 
 export function columnasVisibles(filas: Array<Record<string, unknown>>, cfg: TablaConfig): string[] {
-  const cols = new Set<string>()
+  const cols = new Set<string>(cfg.contexto ?? [])
   for (const f of filas.slice(0, 50)) Object.keys(f).forEach(k => cols.add(k))
   const todas = [...cols].filter(c => c !== cfg.pk && !OCULTAS.has(c) && !cfg.ocultas?.includes(c))
   const primero = (cfg.orden ?? []).filter(c => todas.includes(c))
@@ -314,15 +360,17 @@ export interface Relaciones {
   nombres: Map<string, string>
   cursoDe: (fila: Record<string, unknown>) => string | null
   cursoTexto: Map<string, string>
+  /** Course, unit and element a row belongs to (for the ctx_ columns). */
+  contextoDe: (fila: Record<string, unknown>) => Contexto
 }
 
 export async function cargarRelaciones(): Promise<Relaciones> {
   const [nombres, u, s, r, c, m, l, e] = await Promise.all([
     cargarNombres(),
-    supabase.from('dpl_unidad').select('dpl_unidadid, dpl_cursoid').limit(10000),
-    supabase.from('dpl_sesion').select('dpl_sesionid, dpl_unidadid').limit(10000),
-    supabase.from('dpl_rubrica').select('dpl_rubricaid, dpl_sesionid').limit(10000),
-    supabase.from('dpl_curso').select('dpl_cursoid, dpl_idcursotext').limit(10000),
+    supabase.from('dpl_unidad').select('dpl_unidadid, dpl_cursoid, dpl_idunidadtext, dpl_nombreunidad, dpl_numerounidad, dpl_logroespecifico, dpl_elementocatalogoabreviatura').limit(10000),
+    supabase.from('dpl_sesion').select('dpl_sesionid, dpl_unidadid, dpl_idsesiontext, dpl_elemento, dpl_abreviatura').limit(10000),
+    supabase.from('dpl_rubrica').select('*').limit(10000),
+    supabase.from('dpl_curso').select('dpl_cursoid, dpl_idcursotext, dpl_nombrecurso, dpl_codigocatalogo, dpl_logrocurso, dpl_carrera').limit(10000),
     supabase.from('dpl_matriz').select('dpl_matrizid, dpl_sesionid').limit(10000),
     supabase.from('dpl_listacotejo').select('dpl_listacotejoid, dpl_sesionid').limit(10000),
     supabase.from('dpl_escalavaloracion').select('dpl_escalavaloracionid, dpl_sesionid').limit(10000),
@@ -344,7 +392,40 @@ export async function cargarRelaciones(): Promise<Relaciones> {
     (f.dpl_rubricaid ? deSesion(rubricaSesion.get(f.dpl_rubricaid as string)) : null) ??
     deSesion(f.dpl_sesionbackupid) ??
     deSesion(cabeceraSesion.get((f.dpl_matrizid ?? f.dpl_listacotejoid ?? f.dpl_escalavaloracionid) as string))
-  return { nombres, cursoDe, cursoTexto }
+  // Context rows for the ctx_ columns.
+  const [cp, pr] = await Promise.all([
+    supabase.from('dpl_cursoprograma').select('dpl_cursoid, dpl_programaid').limit(10000),
+    supabase.from('dpl_programa').select('dpl_programaid, dpl_nombre').limit(10000),
+  ])
+  const programa = new Map((pr.data ?? []).map(x => [x.dpl_programaid as string, (x.dpl_nombre as string) ?? '']))
+  const programasCurso = new Map<string, string[]>()
+  for (const x of cp.data ?? []) programasCurso.set(x.dpl_cursoid as string, [...(programasCurso.get(x.dpl_cursoid as string) ?? []), programa.get(x.dpl_programaid as string) ?? ''])
+  const cursos = new Map((c.data ?? []).map(x => [x.dpl_cursoid as string, x as Record<string, unknown>]))
+  const unidades = new Map((u.data ?? []).map(x => [x.dpl_unidadid as string, x as Record<string, unknown>]))
+  const sesiones = new Map((s.data ?? []).map(x => [x.dpl_sesionid as string, x as Record<string, unknown>]))
+  const rubricaDeSesion = new Map((r.data ?? []).map(x => [x.dpl_sesionid as string, x as Record<string, unknown>]))
+  const sesionDe = (f: Record<string, unknown>): string | null =>
+    (f.dpl_sesionid as string | undefined) ??
+    (f.dpl_sesionbackupid as string | undefined) ??
+    (f.dpl_rubricaid ? rubricaSesion.get(f.dpl_rubricaid as string) : undefined) ??
+    cabeceraSesion.get((f.dpl_matrizid ?? f.dpl_listacotejoid ?? f.dpl_escalavaloracionid) as string) ??
+    null
+  const contextoDe = (f: Record<string, unknown>): Contexto => {
+    const sid = sesionDe(f)
+    const sesion = sid ? sesiones.get(sid) ?? null : null
+    const unidad = (sesion ? unidades.get(sesion.dpl_unidadid as string) : f.dpl_unidadid ? unidades.get(f.dpl_unidadid as string) : null) ?? null
+    const cid = cursoDe(f)
+    const curso = cid ? cursos.get(cid) ?? null : null
+    const rub = sid ? rubricaDeSesion.get(sid) : undefined
+    return {
+      curso,
+      unidad,
+      sesion,
+      carrera: (curso?.dpl_carrera as string | undefined) || (cid ? (programasCurso.get(cid) ?? []).filter(Boolean).join(', ') : ''),
+      rubricaRealizada: rub ? !!rub.dpl_realizado : null,
+    }
+  }
+  return { nombres, cursoDe, cursoTexto, contextoDe }
 }
 
 export async function cargarTabla(cfg: TablaConfig): Promise<{ existe: boolean; filas: Array<Record<string, unknown>> }> {
