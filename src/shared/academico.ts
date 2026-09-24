@@ -35,6 +35,7 @@ export const INSTRUMENTO_VALORES = {
   lista: 'lista de cotejo',
   escala: 'escala de valoración',
   escalaAdmin: 'escala de valoración (administración)',
+  noAplica: 'no aplica',
 } as const
 
 export function tipoInstrumento(valor: string | null | undefined): InstrumentoTipo | null {
@@ -91,6 +92,8 @@ export interface Elemento {
   nombre: string
   idSesionText: string | null
   unidadId: string
+  /** ID_UNIDAD_TEXT, part of ID_CONSIGNA_TEXT. */
+  idUnidadText: string | null
   unidadNombre: string
   unidadNumero: number | null
   logroUnidad: string
@@ -122,7 +125,7 @@ export async function getCursoContexto(cursoId: string): Promise<CursoContexto> 
     supabase.from('dpl_cursoprograma').select('dpl_programaid, dpl_programa(dpl_nombre)').eq('dpl_cursoid', cursoId),
     supabase
       .from('dpl_unidad')
-      .select('dpl_unidadid, dpl_nombreunidad, dpl_numerounidad, dpl_logroespecifico')
+      .select('dpl_unidadid, dpl_idunidadtext, dpl_nombreunidad, dpl_numerounidad, dpl_logroespecifico')
       .eq('dpl_cursoid', cursoId)
       .order('dpl_numerounidad', { ascending: true }),
   ])
@@ -163,6 +166,7 @@ export async function getCursoContexto(cursoId: string): Promise<CursoContexto> 
         nombre: capitalizar(s.dpl_elemento as string),
         idSesionText: (s.dpl_idsesiontext as string) ?? null,
         unidadId: s.dpl_unidadid as string,
+        idUnidadText: (u?.dpl_idunidadtext as string) ?? null,
         unidadNombre: capitalizar((u?.dpl_nombreunidad as string) ?? ''),
         unidadNumero: (u?.dpl_numerounidad as number) ?? null,
         logroUnidad: (u?.dpl_logroespecifico as string) ?? '',
@@ -192,7 +196,7 @@ export async function getCursoContexto(cursoId: string): Promise<CursoContexto> 
     permite: {
       consignas: !!curso.dpl_permiteconsignas,
       rubrica: !!curso.dpl_permiterubricas,
-      matriz: !!curso.dpl_permitematrizsn,
+      matriz: !!curso.dpl_permitematrizsn || !!curso.dpl_permitematrizcn,
       lista: !!curso.dpl_permitelistacotejo,
       escala: !!curso.dpl_permiteescala,
     },
@@ -202,6 +206,16 @@ export async function getCursoContexto(cursoId: string): Promise<CursoContexto> 
 }
 
 // ── Consignas ────────────────────────────────────────────────────────────────
+
+/** ID_CONSIGNA_TEXT exactly as in SharePoint: <curso>-<unidad>-<sesión>, e.g. C16-U69-S313. */
+export function idConsigna(idCursoText: string, e: Pick<Elemento, 'idUnidadText' | 'idSesionText'>): string | null {
+  return [idCursoText, e.idUnidadText, e.idSesionText].filter(Boolean).join('-') || null
+}
+
+/** Elements whose consigna still has no instrument chosen ("no aplica" counts as chosen). */
+export function sinInstrumento(ctx: CursoContexto): Elemento[] {
+  return ctx.elementos.filter(e => !(e.consigna?.dpl_instrumento ?? '').trim())
+}
 
 export type ConsignaCampos = Pick<
   ConsignaRow,
@@ -253,7 +267,7 @@ export async function guardarConsigna(
     .insert({
       ...payload,
       dpl_sesionid: elemento.sesionId,
-      dpl_idconsignatext: [idCursoText, elemento.idSesionText].filter(Boolean).join('-') || null,
+      dpl_idconsignatext: idConsigna(idCursoText, elemento),
     })
     .select()
     .single()
@@ -321,7 +335,7 @@ export interface RubricasCurso {
   seleccionPorPrograma: boolean
 }
 
-/** Elements that use a rubric: their consigna chose "Rúbrica", or a rubric already exists for them. */
+/** Elements with a rubric record — created when Rúbricas is activated (or migrated from SharePoint). */
 export async function getRubricasCurso(ctx: CursoContexto): Promise<RubricasCurso> {
   const sesionIds = ctx.elementos.map(e => e.sesionId)
   const { data: rubricas, error: e1 } = sesionIds.length
@@ -387,7 +401,7 @@ export async function getRubricasCurso(ctx: CursoContexto): Promise<RubricasCurs
   }
 
   const elementos: RubricaElemento[] = ctx.elementos
-    .filter(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'rubrica' || rubricaPorSesion.has(e.sesionId))
+    .filter(e => rubricaPorSesion.has(e.sesionId))
     .map(e => {
       const rubricaId = rubricaPorSesion.get(e.sesionId) ?? null
       return { elemento: e, rubricaId, criterios: criterios.filter(c => c.dpl_rubricaid === rubricaId) }
@@ -917,7 +931,7 @@ export async function activarProceso(ctx: CursoContexto, proceso: ProcesoActivab
       const { error } = await supabase.from('dpl_consigna').insert(
         faltan.map(e => ({
           dpl_sesionid: e.sesionId,
-          dpl_idconsignatext: [ctx.idCursoText, e.idSesionText].filter(Boolean).join('-') || null,
+          dpl_idconsignatext: idConsigna(ctx.idCursoText, e),
           dpl_activado: true,
           dpl_usuarioregistro: usuario,
           dpl_fecharegistro: ahora,

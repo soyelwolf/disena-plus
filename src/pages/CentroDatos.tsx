@@ -170,6 +170,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
   const [edicion, setEdicion] = useState<{ fila: Record<string, unknown>; col: string; valor: string } | null>(null)
   const [borrar, setBorrar] = useState<Record<string, unknown> | null>(null)
   const [referencia, setReferencia] = useState<{ fila: Record<string, unknown>; col: string } | null>(null)
+  const [opcion, setOpcion] = useState<{ fila: Record<string, unknown>; col: string; opciones: string[] } | null>(null)
 
   const cargar = useCallback(async () => {
     setError(null)
@@ -262,6 +263,19 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
       await actualizarCelda(cfg, fila[cfg.pk] as string, col, nuevo)
       setFilas(prev => prev && prev.map(f => (f[cfg.pk] === fila[cfg.pk] ? { ...f, [col]: nuevo } : f)))
       setEdicion(null)
+      toast('Se guardó información con éxito')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo guardar.', 'error')
+    }
+  }
+
+  const guardarOpcion = async (valor: string | null) => {
+    if (!opcion) return
+    const { fila, col } = opcion
+    try {
+      await actualizarCelda(cfg, fila[cfg.pk] as string, col, valor)
+      setFilas(prev => prev && prev.map(f => (f[cfg.pk] === fila[cfg.pk] ? { ...f, [col]: valor } : f)))
+      setOpcion(null)
       toast('Se guardó información con éxito')
     } catch (err) {
       toast(err instanceof Error ? err.message : 'No se pudo guardar.', 'error')
@@ -373,6 +387,15 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
                         <input type="checkbox" checked={v} onChange={() => alternar(f, c)} aria-label={etiqueta(c)} />
                       </td>
                     )
+                  const opciones = cfg.opciones?.[c]
+                  if (opciones)
+                    return (
+                      <td key={c}>
+                        <button className="celda celda-edit" title="Clic para elegir" onClick={() => setOpcion({ fila: f, col: c, opciones })}>
+                          {texto(f, c) ? <span className="opcion-chip">{texto(f, c)}</span> : <span style={{ color: '#a1a7ad' }}>— Elegir —</span>}
+                        </button>
+                      </td>
+                    )
                   if (REFERENCIAS_EDITABLES.has(c))
                     return (
                       <td key={c}>
@@ -430,6 +453,35 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
             </>
           ))}
       </Drawer>
+      {opcion && (
+        <Drawer
+          open
+          onClose={() => setOpcion(null)}
+          title={`Elegir ${etiqueta(opcion.col)}`}
+          footer={
+            <>
+              {opcion.fila[opcion.col] ? (
+                <button className="btn btn-outline" onClick={() => guardarOpcion(null)}>Dejar vacío</button>
+              ) : null}
+              <button className="btn btn-primary" onClick={() => setOpcion(null)}>Cancelar</button>
+            </>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {opcion.opciones.map(o => (
+              <button key={o} className={`referencia-op${opcion.fila[opcion.col] === o ? ' actual' : ''}`} onClick={() => guardarOpcion(o)}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <b>{o}</b>
+                  {opcion.fila[opcion.col] === o && <span style={{ marginLeft: 'auto', color: 'var(--color-primary)', display: 'flex' }}><Icon name="check" size={16} strokeWidth={2.4} /></span>}
+                </span>
+              </button>
+            ))}
+            {opcion.fila[opcion.col] && !opcion.opciones.includes(String(opcion.fila[opcion.col])) ? (
+              <p style={{ fontSize: 12, color: 'var(--color-warning)' }}>Valor actual fuera de la lista: «{String(opcion.fila[opcion.col])}».</p>
+            ) : null}
+          </div>
+        </Drawer>
+      )}
       {referencia && (
         <ElegirReferencia
           titulo={etiqueta(referencia.col)}

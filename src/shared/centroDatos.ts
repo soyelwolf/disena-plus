@@ -23,7 +23,18 @@ export interface TablaConfig {
   ocultas?: string[]
   /** Columns shown but not editable here (filled automatically). */
   soloLectura?: string[]
+  /** Choice columns (SharePoint "Opción"): the value is picked from this list. */
+  opciones?: Record<string, string[]>
 }
+
+/** Options of UNIDADES_CURSOS_IA → ¿Qué instrumento (s) de evaluación se empleará? */
+export const OPCIONES_INSTRUMENTO_UNIDAD = [
+  'Consigna + rúbrica', 'Consigna + lista', 'Consigna + escala', 'Consigna + matriz', 'Consigna + rúbrica + matriz', 'Consigna', 'No aplica',
+]
+/** Options of CONSOLIDADO_CONSIGNAS → INSTRUMENTO_ESCOGIDO (same values the app stores). */
+export const OPCIONES_INSTRUMENTO_CONSIGNA = [
+  'rúbrica', 'matriz con rúbrica', 'matriz sin rúbrica', 'lista de cotejo', 'escala de valoración', 'escala de valoración (administración)', 'no aplica',
+]
 
 /** Folders of the Centro de datos menu, in display order (like the SharePoint site navigation). */
 export const GRUPOS = ['Cursos', 'Consignas', 'Rúbricas', 'Matriz', 'Lista de cotejo', 'Escala de valoración', 'Competencias', 'Seguimiento'] as const
@@ -43,6 +54,7 @@ export const TABLAS: TablaConfig[] = [
     // Elemento_Catalogo is a lookup to CATALOGO_ELEMENTOS; its abbreviation and
     // description come from the catalogue (kept as text for the Excel export).
     ocultas: ['dpl_elementocatalogo'],
+    opciones: { dpl_instrumentoevaluacion: OPCIONES_INSTRUMENTO_UNIDAD },
     soloLectura: ['dpl_elementocatalogoabreviatura', 'dpl_elementocatalogodescripcion'],
   },
   {
@@ -57,7 +69,7 @@ export const TABLAS: TablaConfig[] = [
       'dpl_actividad', 'dpl_elemento', 'dpl_abreviatura', 'dpl_observacion', 'dpl_peso', 'dpl_tipoobservacion', 'dpl_tieneelemento', 'dpl_realizado',
     ],
   },
-  { grupo: 'Consignas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas', etiqueta: 'dpl_idconsignatext', orden: ['dpl_idconsignatext', 'dpl_instrumento'] },
+  { grupo: 'Consignas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas', etiqueta: 'dpl_idconsignatext', orden: ['dpl_idconsignatext', 'dpl_instrumento'], opciones: { dpl_instrumento: OPCIONES_INSTRUMENTO_CONSIGNA } },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Criterios de las rúbricas', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'REL_RUBRICA_COMPETENCIAS', descripcion: 'Competencias elegidas por criterio' },
   { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz' },
@@ -88,7 +100,6 @@ const ETIQUETAS: Record<string, string> = {
   dpl_logrocurso: 'Logro de aprendizaje',
   dpl_permiteconsignas: 'Permite_Consignas',
   dpl_permiterubricas: 'Permite_Rubricas',
-  dpl_permitematrizsn: 'Permite_Matriz',
   dpl_permitelistacotejo: 'Permite_Lista_Cotejo',
   dpl_permiteescala: 'Permite_Escala',
   dpl_docenteasignado: 'DocenteyAsesor (texto antiguo)',
@@ -155,6 +166,28 @@ const ETIQUETAS: Record<string, string> = {
   dpl_competenciaid: 'Competencia',
   dpl_rubricaid: 'Rúbrica',
   dpl_rubricacriterioid: 'Criterio',
+  dpl_json: 'JSON',
+  dpl_resultadogpt: 'RESULTADO_GPT',
+  dpl_modeloia: 'MODELO_IA',
+  dpl_fechaia: 'Fecha IA',
+  dpl_permitematrizcn: 'Permite_Matriz_CN',
+  dpl_permitematrizsn: 'Permite_Matriz_SN',
+  dpl_ppt: 'PPT',
+  dpl_sinppt: 'Sin_PPT',
+  dpl_channelid: 'ChannelID',
+  dpl_ia_consigna_corrido: 'IA_ParaConsigna_Corrido',
+  dpl_ia_rubrica_corrido: 'IA_ParaRubrica_Corrido',
+  dpl_ia_matrizconrubrica_corrido: 'IA_ParaMatrizConRubrica_Corrido',
+  dpl_ia_matrizsinrubrica_corrido: 'IA_ParaMatrizSinRubrica_Corrido',
+  dpl_ia_escala_corrido: 'IA_ParaEscala_Corrido',
+  dpl_ia_lista_corrido: 'IA_ParaLista_Corrido',
+  dpl_ia_sesiones_corrido: 'IA_ParaSesiones_Corrido',
+  dpl_notif_consigna_enviada: 'NotificacionConsignaEnviada',
+  dpl_notif_rubrica_enviada: 'NotificacionRubricaEnviada',
+  dpl_notif_matrizconrubrica_enviada: 'NotificacionMatrizConRubricaEnviada',
+  dpl_notif_matrizsinrubrica_enviada: 'NotificacionMatrizSinRubricaEnviada',
+  dpl_notif_escala_enviada: 'NotificacionEscalaEnviada',
+  dpl_notif_lista_enviada: 'NotificacionListaEnviada',
   dpl_catalogoelementoid: 'Elemento_Catalogo',
 }
 

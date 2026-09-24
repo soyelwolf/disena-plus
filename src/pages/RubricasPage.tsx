@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Comentarios from '../components/Comentarios'
 import { VistaRica } from '../components/TextoEnriquecido'
+import { Link } from 'react-router-dom'
 import { Breadcrumbs, Cargando, CursoHeader, Drawer, ErrorPanel, Modal, SavingOverlay, useToast } from '../components/ui'
 import { useAuth } from '../shared/AuthContext'
 import {
@@ -10,6 +11,7 @@ import {
   PUNTAJE_OBJETIVO,
   eliminarCriterio,
   finalizarInstrumento,
+  getActivacion,
   getComentarios,
   getRubricasCurso,
   habilitarEdicion,
@@ -50,6 +52,10 @@ export default function RubricasPage() {
   const [iaPara, setIaPara] = useState<RubricaElemento | null>(null)
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [comentariosDe, setComentariosDe] = useState<{ id: string; titulo: string } | null>(null)
+  const [activada, setActivada] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (ctx) getActivacion(ctx).then(a => setActivada(a.rubrica.activado)).catch(() => setActivada(true))
+  }, [ctx])
 
   useEffect(() => {
     document.title = 'Rúbricas — Diseña+'
@@ -95,6 +101,21 @@ export default function RubricasPage() {
   if (error || !ctx || !proceso) return <ErrorPanel mensaje={error ?? 'Curso no encontrado.'} onRetry={recargar} />
   if (errorDatos) return <ErrorPanel mensaje={errorDatos} onRetry={cargar} />
   if (!datos) return <Cargando texto="Cargando rúbricas" />
+  if (activada === false) {
+    return (
+      <div className="page">
+        <Breadcrumbs items={[{ label: 'Cursos', to: '/cursos' }, { label: ctx.nombre, to: `/cursos/${ctx.id}` }, { label: 'Rúbrica' }]} />
+        <div className="panel aviso-activar">
+          <Icon name="sparkles" size={28} />
+          <p style={{ fontWeight: 700, fontSize: 17 }}>Rúbricas aún no está activado</p>
+          <p style={{ color: 'var(--color-text-muted)', maxWidth: 520 }}>
+            Primero elige el instrumento en todas las consignas del curso; luego activa Rúbricas desde la página del curso para preparar sus elementos.
+          </p>
+          <Link className="btn btn-primary" to={`/cursos/${ctx.id}`}>Ir al curso</Link>
+        </div>
+      </div>
+    )
+  }
 
   const problemas = datos.elementos.map(problemaElemento)
   const todoCompleto = datos.elementos.length > 0 && problemas.every(p => p === null)
@@ -244,7 +265,7 @@ export default function RubricasPage() {
 
       {datos.elementos.length === 0 && (
         <div className="panel" style={{ padding: 48, textAlign: 'center', color: 'var(--color-text-muted)' }}>
-          Ningún elemento de este curso usa rúbrica. El instrumento se elige en cada consigna.
+          Ningún elemento quedó preparado para rúbrica al activar. El instrumento se elige en cada consigna antes de activar Rúbricas.
         </div>
       )}
 

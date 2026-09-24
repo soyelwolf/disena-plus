@@ -73,7 +73,7 @@ importacion/              datos personales para importar (NO se sube a Git)
 ## Base de datos (Supabase)
 
 Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.sql` →
-`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` → `schema-unidades-sesiones.sql` → `schema-catalogo-elementos.sql` (todos re-ejecutables).
+`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` → `schema-unidades-sesiones.sql` → `schema-catalogo-elementos.sql` → `schema-columnas-sharepoint.sql` (todos re-ejecutables).
 
 - Catálogo: `dpl_curso`, `dpl_unidad` (logro específico; Elemento_Catalogo → `dpl_catalogoelemento` = CATALOGO_ELEMENTOS), `dpl_sesion` (todas las sesiones del sílabo; las que tienen `dpl_elemento` son elementos de evaluación),
   `dpl_programa`, `dpl_cursoprograma`, `dpl_competencia`, `dpl_cursoprogramacompetencia`.
@@ -89,6 +89,8 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 
 - Alcance actual: **solo Diseño de contenido académico** (consignas + instrumentos). Mapeo y
   Contenido instruccional (sesiones/PPT) aún no.
+- `ID_CONSIGNA_TEXT` = curso-unidad-sesión (C16-U69-S313), función `idConsigna`. Adjuntos por consigna en Storage `adjuntos/consigna/<id>/`. Columnas IA (JSON, RESULTADO_GPT, MODELO_IA, HERRAMIENTA_IA) en consigna y cabeceras de instrumentos.
+- Rúbricas solo muestra elementos con cabecera creada al ACTIVAR; los instrumentos se activan cuando todas las consignas tienen instrumento ("no aplica" cuenta).
 - Consignas: instrumento Rúbrica / Matriz (con o sin rúbrica) / Lista de cotejo / Escala (normal o
   "cursos DDA administración"). Límites: Indicación general 2000, Indicaciones específicas 10000,
   Recomendaciones 2000, Anexo 15000 (en `LIMITES`, `academico.ts`).

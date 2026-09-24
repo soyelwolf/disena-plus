@@ -593,3 +593,13 @@ fieldset:disabled .radio { cursor: default; opacity: 0.8; }
 .referencia-op { display: flex; flex-direction: column; gap: 4px; text-align: left; border: 1px solid var(--color-border); background: #fff; border-radius: 6px; padding: 10px 12px; font: inherit; font-size: 14px; color: var(--color-text); }
 .referencia-op:hover { border-color: var(--color-primary); background: #f7fbfa; }
 .referencia-op.actual { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(0, 92, 75, 0.12); }
+
+/* ── Datos adjuntos ─────────────────────────────────────────────────── */
+.adjuntos-vacio { font-size: 13px; color: var(--color-text-muted); padding: 12px 14px; border: 1px dashed #c9d2d6; border-radius: 6px; }
+.adjuntos-lista { display: flex; flex-direction: column; gap: 6px; }
+.adjunto { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 6px; background: #fff; }
+.adjunto-icono { width: 34px; height: 34px; border-radius: 6px; background: var(--color-primary-light); color: var(--color-primary); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.adjunto-nombre { font-size: 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adjunto small { font-size: 12px; color: var(--color-text-muted); }
+.aviso-activar { padding: 40px 24px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.opcion-chip { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: #e7eefb; color: #24478f; white-space: nowrap; }

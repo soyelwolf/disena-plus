@@ -12,6 +12,7 @@ import {
   type ProcesoActivable,
   getRubricasCurso,
   problemaElemento,
+  sinInstrumento,
   validarConsigna,
   type RubricasCurso,
 } from '../shared/academico'
@@ -110,6 +111,12 @@ export default function HubCurso() {
     }
   }
   const consignasActivas = !!activacion?.consignas.activado
+  const faltanInstrumento = sinInstrumento(ctx).length
+  const motivoInstrumentos = !consignasActivas
+    ? 'Primero activa Consignas'
+    : faltanInstrumento
+      ? `Elige el instrumento en todas las consignas (faltan ${faltanInstrumento})`
+      : undefined
 
   const instruccional: Tarjeta[] = [
     { titulo: 'Sesiones de clase', subtitulo: 'Contenido y agenda del día', estado: 'proximamente' },
@@ -179,7 +186,7 @@ export default function HubCurso() {
                 key={t.titulo}
                 t={t}
                 onActivar={puedeActivar ? () => setConfirmar(t) : undefined}
-                motivoBloqueo={t.proceso !== 'consignas' && !consignasActivas ? 'Primero activa Consignas' : undefined}
+                motivoBloqueo={t.proceso !== 'consignas' ? motivoInstrumentos : undefined}
               />
             ))}
           </div>

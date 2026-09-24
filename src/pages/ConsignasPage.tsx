@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import Comentarios from '../components/Comentarios'
 import TextoEnriquecido from '../components/TextoEnriquecido'
+import DatosAdjuntos from '../components/DatosAdjuntos'
+import { Link } from 'react-router-dom'
 import {
   Breadcrumbs,
   Cargando,
@@ -18,6 +20,7 @@ import {
   CAMPOS_CONSIGNA,
   INSTRUMENTO_VALORES,
   finalizarInstrumento,
+  getActivacion,
   getComentarios,
   getRubricasCurso,
   guardarConsigna,
@@ -36,6 +39,7 @@ const INSTRUMENTOS: Array<{ tipo: ReturnType<typeof tipoInstrumento>; label: str
   { tipo: 'matriz', label: 'Matriz', valor: INSTRUMENTO_VALORES.matrizSin },
   { tipo: 'lista', label: 'Lista de cotejo', valor: INSTRUMENTO_VALORES.lista },
   { tipo: 'escala', label: 'Escala de valoración', valor: INSTRUMENTO_VALORES.escala },
+  { tipo: null, label: 'No aplica', valor: INSTRUMENTO_VALORES.noAplica },
 ]
 
 type EstadoGuardado = 'idle' | 'guardando' | 'guardado' | 'error'
@@ -54,6 +58,7 @@ export default function ConsignasPage() {
   const [finalizando, setFinalizando] = useState(false)
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [verComentarios, setVerComentarios] = useState(false)
+  const [activada, setActivada] = useState<boolean | null>(null)
   const pendientes = useRef(new Map<string, Partial<ConsignaCampos>>())
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -138,6 +143,10 @@ export default function ConsignasPage() {
     [ctx],
   )
 
+  useEffect(() => {
+    if (ctx) getActivacion(ctx).then(a => setActivada(a.consignas.activado)).catch(() => setActivada(true))
+  }, [ctx])
+
   if (loading) return <Cargando texto="Cargando consignas" />
   if (error || !ctx || !proceso) return <ErrorPanel mensaje={error ?? 'Curso no encontrado.'} onRetry={recargar} />
 
@@ -182,6 +191,20 @@ export default function ConsignasPage() {
     } catch (err) {
       toast(err instanceof Error ? err.message : 'No se pudo habilitar la edición.', 'error')
     }
+  }
+
+  if (activada === false) {
+    return (
+      <div className="page">
+        <Breadcrumbs items={[{ label: 'Cursos', to: '/cursos' }, { label: ctx.nombre, to: `/cursos/${ctx.id}` }, { label: 'Consignas' }]} />
+        <div className="panel aviso-activar">
+          <Icon name="sparkles" size={28} />
+          <p style={{ fontWeight: 700, fontSize: 17 }}>Consignas aún no está activado</p>
+          <p style={{ color: 'var(--color-text-muted)', maxWidth: 480 }}>Actívalo desde la página del curso para preparar los elementos de evaluación.</p>
+          <Link className="btn btn-primary" to={`/cursos/${ctx.id}`}>Ir al curso</Link>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -416,7 +439,7 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
               <input
                 type="radio"
                 name={`inst-${el.sesionId}`}
-                checked={tipo === i.tipo}
+                checked={i.valor === INSTRUMENTO_VALORES.noAplica ? valor === INSTRUMENTO_VALORES.noAplica : tipo !== null && tipo === i.tipo}
                 onChange={() => onChange({ dpl_instrumento: i.valor })}
               />
               {i.label}
@@ -440,6 +463,11 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
         )}
       </fieldset>
 
+      {valor === INSTRUMENTO_VALORES.noAplica && (
+        <div className="alert-banner alert-info" style={{ justifyContent: 'flex-start', padding: '10px 14px' }}>
+          <Icon name="info" size={16} />Este elemento no usa instrumento de evaluación; no aparecerá en Rúbricas, Matriz, Lista ni Escala.
+        </div>
+      )}
       {CAMPOS_CONSIGNA.map(campo => (
         <TextoEnriquecido
           key={campo.key}
@@ -452,6 +480,7 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
           onChange={v => onChange({ [campo.key]: v })}
         />
       ))}
+      <DatosAdjuntos consignaId={c?.dpl_consignaid || null} editable={editable} titulo={el.nombre} />
     </section>
   )
 }
