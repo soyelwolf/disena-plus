@@ -17,7 +17,6 @@ import { useAuth } from '../shared/AuthContext'
 import {
   CAMPOS_CONSIGNA,
   INSTRUMENTO_VALORES,
-  LIMITES,
   finalizarInstrumento,
   getComentarios,
   getRubricasCurso,
@@ -304,7 +303,7 @@ export default function ConsignasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        Cada elemento debe tener el instrumento elegido y todos los campos obligatorios completos, sin exceder {LIMITES.consigna} caracteres.
+        Cada elemento debe tener el instrumento elegido y todos los campos obligatorios completos, sin exceder el límite de caracteres de cada campo.
       </Modal>
       <Modal
         open={modal === 'enviado'}
@@ -447,7 +446,7 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
           id={`${campo.key}-${el.sesionId}`}
           label={campo.label}
           value={c?.[campo.key] ?? ''}
-          max={LIMITES.consigna}
+          max={campo.max}
           readOnly={!editable}
           error={mostrarErrores ? errores[campo.key] : undefined}
           onChange={v => onChange({ [campo.key]: v })}

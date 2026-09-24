@@ -13,7 +13,10 @@ import { supabase } from './supabaseClient'
 
 /** Max characters per field. One place to change them. */
 export const LIMITES = {
-  consigna: 1000,
+  indicacionGeneral: 2000,
+  indicacionesEspecificas: 5000,
+  recomendaciones: 2000,
+  anexo: 5000,
   criterioNombre: 150,
   criterioTexto: 1000,
 } as const
@@ -202,11 +205,11 @@ export type ConsignaCampos = Pick<
   'dpl_indicaciongeneral' | 'dpl_indicacionesespecificas' | 'dpl_recomendaciones' | 'dpl_anexo' | 'dpl_instrumento'
 >
 
-export const CAMPOS_CONSIGNA: Array<{ key: keyof ConsignaCampos; label: string; opcional?: boolean }> = [
-  { key: 'dpl_indicaciongeneral', label: 'Indicación general' },
-  { key: 'dpl_indicacionesespecificas', label: 'Indicaciones específicas' },
-  { key: 'dpl_recomendaciones', label: 'Recomendaciones' },
-  { key: 'dpl_anexo', label: 'Anexo (Opcional)', opcional: true },
+export const CAMPOS_CONSIGNA: Array<{ key: keyof ConsignaCampos; label: string; max: number; opcional?: boolean }> = [
+  { key: 'dpl_indicaciongeneral', label: 'Indicación general', max: LIMITES.indicacionGeneral },
+  { key: 'dpl_indicacionesespecificas', label: 'Indicaciones específicas', max: LIMITES.indicacionesEspecificas },
+  { key: 'dpl_recomendaciones', label: 'Recomendaciones', max: LIMITES.recomendaciones },
+  { key: 'dpl_anexo', label: 'Anexo (Opcional)', max: LIMITES.anexo, opcional: true },
 ]
 
 export interface ConsignaValidacion {
@@ -220,7 +223,7 @@ export function validarConsigna(c: Partial<ConsignaCampos> | null): ConsignaVali
   for (const campo of CAMPOS_CONSIGNA) {
     const v = (c?.[campo.key] ?? '').trim()
     if (!v && !campo.opcional) errores[campo.key] = 'Completar información'
-    else if (v.length > LIMITES.consigna) errores[campo.key] = 'Excediste el número de caracteres'
+    else if (v.length > campo.max) errores[campo.key] = 'Excediste el número de caracteres'
   }
   return { completa: Object.keys(errores).length === 0, errores }
 }
