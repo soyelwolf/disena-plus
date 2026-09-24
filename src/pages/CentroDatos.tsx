@@ -176,7 +176,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
   const cargar = useCallback(async () => {
     setError(null)
     try {
-      const [t, r] = await Promise.all([cargarTabla(cfg), cargarRelaciones()])
+      const [t, r] = await Promise.all([cargarTabla(cfg), cargarRelaciones(cfg)])
       setExiste(t.existe)
       setFilas(t.filas)
       setNombres(r.nombres)
@@ -231,7 +231,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
     [nombres, rel, extraPorKey],
   )
   const etiqueta = (c: string) =>
-    c === ID_CURSO_VIRTUAL ? cfg.etiquetas?.[ID_CURSO_VIRTUAL] ?? 'ID_CURSO' : CONTEXTO[c]?.etiqueta ?? extraPorKey.get(c)?.label ?? etiquetaColumna(c, cfg)
+    c === ID_CURSO_VIRTUAL ? cfg.etiquetas?.[ID_CURSO_VIRTUAL] ?? 'ID_CURSO' : (CONTEXTO[c] && cfg.etiquetas?.[c]) || CONTEXTO[c]?.etiqueta || (extraPorKey.get(c)?.label ?? etiquetaColumna(c, cfg))
 
   useEffect(() => {
     // Re-read when the parent signals its extra columns changed (e.g. assignments saved).

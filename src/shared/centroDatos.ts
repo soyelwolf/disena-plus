@@ -42,7 +42,37 @@ export interface Contexto {
   sesion: Record<string, unknown> | null
   carrera: string
   rubricaRealizada: boolean | null
+  /** Consigna of the element (only loaded for lists that show its columns). */
+  consigna: Record<string, unknown> | null
+  /** Criteria of the rubric in order (only for CONSOLIDADO_RUBRICAS). */
+  criterios: Array<Record<string, unknown>>
+  /** Competences marked in the rubric's criteria (only for CONSOLIDADO_RUBRICAS). */
+  competencias: Array<Record<string, unknown>>
 }
+
+const unir = (vals: unknown[]) => [...new Set(vals.map(v => (v === null || v === undefined ? '' : typeof v === 'boolean' ? (v ? 'Sí' : 'No') : String(v))).filter(Boolean))].join(' | ')
+
+/** Criteria 1..10 as SharePoint columns, with the export's exact header names. */
+const CAMPOS_CRITERIO: Array<{ campo: string; nombre: (n: number) => string }> = [
+  { campo: 'dpl_criterio', nombre: n => `Criterios de evaluación${n > 1 ? n : ''}` },
+  { campo: 'dpl_definicioncriterio', nombre: n => `Definición de Criterio${n > 1 ? n : ''}` },
+  { campo: 'dpl_estandaresperado', nombre: n => `Estándar Esperado${n > 1 ? n : ''}` },
+  { campo: 'dpl_enproceso2', nombre: n => `En Proceso 2${n > 1 ? '_' + n : ''}` },
+  { campo: 'dpl_enproceso1', nombre: n => `En Proceso 1${n > 1 ? '_' + n : ''}` },
+  { campo: 'dpl_inicial', nombre: n => `Inicial${n > 1 ? n : ''}` },
+  { campo: 'dpl_puntajeestandar', nombre: n => `Puntaje_e${n > 1 ? '_' + n : ''}` },
+  { campo: 'dpl_puntajeenproceso2', nombre: n => `Puntaje_P2${n > 1 ? '_' + n : ''}` },
+  { campo: 'dpl_puntajeenproceso1', nombre: n => `Puntaje_P1${n > 1 ? '_' + n : ''}` },
+  { campo: 'dpl_puntajeinicial', nombre: n => `Puntaje_I${n > 1 ? '_' + n : ''}` },
+]
+const CRITERIO_KEYS: string[] = []
+const CONTEXTO_CRITERIOS: Record<string, { etiqueta: string; valor: (c: Contexto) => unknown }> = {}
+for (let n = 1; n <= 10; n++)
+  for (const k of CAMPOS_CRITERIO) {
+    const key = `ctx_c${n}_${k.campo}`
+    CRITERIO_KEYS.push(key)
+    CONTEXTO_CRITERIOS[key] = { etiqueta: k.nombre(n), valor: c => c.criterios[n - 1]?.[k.campo] }
+  }
 export const CONTEXTO: Record<string, { etiqueta: string; valor: (c: Contexto) => unknown }> = {
   ctx_nombrecurso: { etiqueta: 'NOMBRE_CURSO', valor: c => c.curso?.dpl_nombrecurso },
   ctx_codigocatalogo: { etiqueta: 'COD_CATALAGO', valor: c => c.curso?.dpl_codigocatalogo },
@@ -57,7 +87,30 @@ export const CONTEXTO: Record<string, { etiqueta: string; valor: (c: Contexto) =
   ctx_carrera: { etiqueta: 'CARRERA', valor: c => c.carrera },
   ctx_realizadorubrica: { etiqueta: 'RealizadoRúbrica', valor: c => c.rubricaRealizada },
   ctx_instrumentotexto: { etiqueta: 'INSTRUMENTO_TEXT', valor: () => undefined }, // filled from the row itself (see CentroDatos)
+  ctx_idconsigna: { etiqueta: 'ID_CONSIGNA_TEXT', valor: c => c.consigna?.dpl_idconsignatext },
+  ctx_instrumento: { etiqueta: 'INSTRUMENTO', valor: c => c.consigna?.dpl_instrumento },
+  ctx_queseevaluara: { etiqueta: 'QUE_SE_EVALUARA', valor: c => c.consigna?.dpl_queseevaluara },
+  ctx_indicaciongeneral: { etiqueta: 'INDICACIONES_GENERALES', valor: c => c.consigna?.dpl_indicaciongeneral },
+  ctx_indicacionesespecificas: { etiqueta: 'INDICACIONES_ESPECIFICAS', valor: c => c.consigna?.dpl_indicacionesespecificas },
+  ctx_competencia: { etiqueta: 'COMPETENCIA_MAPEO', valor: c => unir(c.competencias.map(x => x.nombre)) },
+  ctx_competenciaevidencia: { etiqueta: 'COMPETENCIA_EVIDENCIA_MAPEO', valor: c => unir(c.competencias.map(x => x.competenciaEvidencia)) },
+  ctx_descripcioncompetencia: { etiqueta: 'DESCRIPCION_COMPETENCIA', valor: c => unir(c.competencias.map(x => x.descripcion)) },
+  ctx_tipocompetencia: { etiqueta: 'TIPO_COMPETENCIA', valor: c => unir(c.competencias.map(x => x.tipo)) },
+  ctx_nivelcompetencia: { etiqueta: 'NIVEL_COMPETENCIA', valor: c => unir(c.competencias.map(x => x.nivel)) },
+  ctx_cursoevidencia: { etiqueta: 'CURSO_EVIDENCIA', valor: c => unir(c.competencias.map(x => x.cursoEvidencia)) },
+  ...CONTEXTO_CRITERIOS,
 }
+
+/** CONSOLIDADO_RUBRICAS in the exact order of the SharePoint export: one row per element. */
+const ORDEN_RUBRICAS = [
+  'ctx_idunidad', 'ctx_idsesion', 'ctx_idconsigna', 'ctx_instrumento', 'ctx_queseevaluara', 'ctx_nombreunidad', 'ctx_logrounidad',
+  'ctx_logrocurso', 'dpl_realizado', 'ctx_unidad', 'ctx_codigocatalogo', 'dpl_estado', 'dpl_json', 'ctx_nombrecurso',
+  'dpl_resultadogpt', 'ctx_competencia', 'dpl_modeloia', 'ctx_carrera', 'dpl_herramientaia', 'ctx_abreviatura', 'ctx_elemento',
+  ...CRITERIO_KEYS,
+  'dpl_usuarioregistro', 'dpl_fecharegistro', 'ctx_indicaciongeneral', 'ctx_indicacionesespecificas',
+  'ctx_competenciaevidencia', 'ctx_descripcioncompetencia', 'ctx_tipocompetencia', 'ctx_nivelcompetencia', 'ctx_cursoevidencia',
+]
+const CONTEXTO_RUBRICAS = ORDEN_RUBRICAS.filter(k => k.startsWith('ctx_'))
 /** The course columns every instrument list of SharePoint starts with. */
 const CONTEXTO_INSTRUMENTO = ['ctx_nombrecurso', 'ctx_codigocatalogo', 'ctx_logrocurso', 'ctx_idsesion', 'ctx_idunidad', 'ctx_nombreunidad', 'ctx_unidad', 'ctx_abreviatura', 'ctx_elemento', 'ctx_logrounidad', 'ctx_carrera']
 
@@ -174,7 +227,12 @@ export const TABLAS: TablaConfig[] = [
     etiquetas: { __id_curso__: 'ID_CURSO_TEXT', dpl_realizado: 'RealizadoConsigna', dpl_json: 'JSON', dpl_resultadogpt: 'RESULTADO_GPT' },
     opciones: { dpl_instrumento: OPCIONES_INSTRUMENTO_CONSIGNA },
   },
-  { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Criterios de las rúbricas', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
+  {
+    grupo: 'Rúbricas', tabla: 'dpl_rubrica', pk: 'dpl_rubricaid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Una fila por elemento, como SharePoint (criterios 1 a 10 en columnas)', etiqueta: 'dpl_nombre',
+    orden: ORDEN_RUBRICAS, contexto: CONTEXTO_RUBRICAS,
+    etiquetas: { __id_curso__: 'ID_CURSO_TEXT', ctx_abreviatura: 'ABREVI_ELEMEN', dpl_realizado: 'RealizadoRúbrica', dpl_fecharegistro: 'Hora_Registro', dpl_json: 'JSON', dpl_resultadogpt: 'RESULTADO_GPT' },
+  },
+  { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS · criterios', descripcion: 'Una fila por criterio (para corregir criterio por criterio)', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'REL_RUBRICA_COMPETENCIAS', descripcion: 'Competencias elegidas por criterio' },
   { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz (con y sin rúbrica)', etiquetas: { __id_curso__: 'ID_CURSO_TEXT', ...ETIQUETAS_MATRIZ }, orden: [...CONTEXTO_INSTRUMENTO, ...ORDEN_MATRIZ], contexto: CONTEXTO_INSTRUMENTO },
   { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo', etiquetas: { __id_curso__: 'ID_CURSO_TEXT', ...ETIQUETAS_LISTA }, orden: [...CONTEXTO_INSTRUMENTO, ...ORDEN_LISTA], contexto: CONTEXTO_INSTRUMENTO },
@@ -193,7 +251,6 @@ export const TABLAS: TablaConfig[] = [
   { grupo: 'Seguimiento', tabla: 'dpl_procesoevento', pk: 'dpl_procesoeventoid', titulo: 'HISTORIAL_APROBACIONES', descripcion: 'Quién finalizó, aprobó o devolvió' },
   { grupo: 'Seguimiento', tabla: 'dpl_comentario', pk: 'dpl_comentarioid', titulo: 'COMENTARIOS', descripcion: 'Comentarios de los aprobadores' },
   { grupo: 'Competencias', tabla: 'dpl_cursoprogramacompetencia', pk: 'dpl_cursoprogramacompetenciaid', titulo: 'Competencias por curso y programa', descripcion: 'Alimenta las competencias de Rúbricas' },
-  { grupo: 'Rúbricas', tabla: 'dpl_rubrica', pk: 'dpl_rubricaid', titulo: 'Rúbricas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
   { grupo: 'Matriz', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'Matrices (cabecera)', descripcion: 'Una por elemento: estado, IA y RealizadoMatrizSinRubrica', etiqueta: 'dpl_nombre', etiquetas: { ...ETIQUETAS_CABECERA_IA, dpl_realizado: 'RealizadoMatrizSinRubrica', dpl_usuarioia: 'IA_ParaMatrizSinRubrica_Usuario', dpl_fechaia: 'IA_ParaMatrizSinRubrica_Fecha' } },
   { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'Listas de cotejo (cabecera)', descripcion: 'Una por elemento: ID_LISTA_TEXT, estado, IA y RealizadoLista', etiqueta: 'dpl_nombre', orden: ['dpl_idlistatext'], etiquetas: { ...ETIQUETAS_CABECERA_IA, dpl_resultadogpt: 'RESULTADO_GPT', dpl_json: 'JSON', dpl_realizado: 'RealizadoLista' } },
   { grupo: 'Escala de valoración', tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid', titulo: 'Escalas (cabecera)', descripcion: 'Una por elemento: ID_ESCALA_TEXT, tipo de escala, IA y RealizadoEscala', etiqueta: 'dpl_nombre', orden: ['dpl_idescalatext', 'dpl_tipoescala'], etiquetas: { ...ETIQUETAS_CABECERA_IA, dpl_resultadogpt: 'RESULTADO_GPT', dpl_json: 'JSON', dpl_realizado: 'RealizadoEscala' } },
@@ -364,7 +421,10 @@ export interface Relaciones {
   contextoDe: (fila: Record<string, unknown>) => Contexto
 }
 
-export async function cargarRelaciones(): Promise<Relaciones> {
+export async function cargarRelaciones(cfg?: TablaConfig): Promise<Relaciones> {
+  const pide = new Set(cfg?.contexto ?? [])
+  const conConsigna = ['ctx_idconsigna', 'ctx_instrumento', 'ctx_queseevaluara', 'ctx_indicaciongeneral', 'ctx_indicacionesespecificas'].some(k => pide.has(k))
+  const conCriterios = cfg?.tabla === 'dpl_rubrica' && [...pide].some(k => k.startsWith('ctx_c') || k.startsWith('ctx_competencia') || k.includes('competencia'))
   const [nombres, u, s, r, c, m, l, e] = await Promise.all([
     cargarNombres(),
     supabase.from('dpl_unidad').select('dpl_unidadid, dpl_cursoid, dpl_idunidadtext, dpl_nombreunidad, dpl_numerounidad, dpl_logroespecifico, dpl_elementocatalogoabreviatura').limit(10000),
@@ -410,6 +470,43 @@ export async function cargarRelaciones(): Promise<Relaciones> {
     (f.dpl_rubricaid ? rubricaSesion.get(f.dpl_rubricaid as string) : undefined) ??
     cabeceraSesion.get((f.dpl_matrizid ?? f.dpl_listacotejoid ?? f.dpl_escalavaloracionid) as string) ??
     null
+  // Consignas, criteria and competences, only when the list shows them.
+  const consignaDeSesion = new Map<string, Record<string, unknown>>()
+  if (conConsigna) {
+    const { data } = await supabase.from('dpl_consigna').select('dpl_sesionid, dpl_idconsignatext, dpl_instrumento, dpl_queseevaluara, dpl_indicaciongeneral, dpl_indicacionesespecificas').limit(10000)
+    for (const x of data ?? []) consignaDeSesion.set(x.dpl_sesionid as string, x)
+  }
+  const criteriosDeRubrica = new Map<string, Array<Record<string, unknown>>>()
+  const competenciasDeRubrica = new Map<string, Array<Record<string, unknown>>>()
+  if (conCriterios) {
+    const [cr, sel, comp, cpc] = await Promise.all([
+      supabase.from('dpl_rubricacriterio').select('*').order('dpl_orden', { ascending: true }).limit(20000),
+      supabase.from('dpl_rubricacriteriocompetencia').select('dpl_rubricacriterioid, dpl_competenciaid').limit(20000),
+      supabase.from('dpl_competencia').select('dpl_competenciaid, dpl_competencia, dpl_descripcion, dpl_tipocompetencia').limit(10000),
+      supabase.from('dpl_cursoprogramacompetencia').select('dpl_cursoid, dpl_competenciaid, dpl_nivel, dpl_cursoevidencia, dpl_competenciaevidencia').limit(20000),
+    ])
+    const rubricaDeCriterio = new Map<string, string>()
+    for (const x of cr.data ?? []) {
+      rubricaDeCriterio.set(x.dpl_rubricacriterioid as string, x.dpl_rubricaid as string)
+      criteriosDeRubrica.set(x.dpl_rubricaid as string, [...(criteriosDeRubrica.get(x.dpl_rubricaid as string) ?? []), x])
+    }
+    const competencia = new Map((comp.data ?? []).map(x => [x.dpl_competenciaid as string, x]))
+    const mapeo = new Map((cpc.data ?? []).map(x => [`${x.dpl_cursoid}|${x.dpl_competenciaid}`, x]))
+    const vistos = new Set<string>()
+    for (const x of sel.data ?? []) {
+      const rid = rubricaDeCriterio.get(x.dpl_rubricacriterioid as string)
+      const c = competencia.get(x.dpl_competenciaid as string)
+      if (!rid || !c || vistos.has(rid + '|' + c.dpl_competenciaid)) continue
+      vistos.add(rid + '|' + c.dpl_competenciaid)
+      const cid = deSesion(rubricaSesion.get(rid))
+      const m = cid ? mapeo.get(`${cid}|${c.dpl_competenciaid}`) : undefined
+      competenciasDeRubrica.set(rid, [
+        ...(competenciasDeRubrica.get(rid) ?? []),
+        { nombre: c.dpl_competencia, descripcion: c.dpl_descripcion, tipo: c.dpl_tipocompetencia, nivel: m?.dpl_nivel, cursoEvidencia: m?.dpl_cursoevidencia, competenciaEvidencia: m?.dpl_competenciaevidencia },
+      ])
+    }
+  }
+
   const contextoDe = (f: Record<string, unknown>): Contexto => {
     const sid = sesionDe(f)
     const sesion = sid ? sesiones.get(sid) ?? null : null
@@ -423,6 +520,9 @@ export async function cargarRelaciones(): Promise<Relaciones> {
       sesion,
       carrera: (curso?.dpl_carrera as string | undefined) || (cid ? (programasCurso.get(cid) ?? []).filter(Boolean).join(', ') : ''),
       rubricaRealizada: rub ? !!rub.dpl_realizado : null,
+      consigna: sid ? consignaDeSesion.get(sid) ?? null : null,
+      criterios: f.dpl_rubricaid ? criteriosDeRubrica.get(f.dpl_rubricaid as string) ?? [] : [],
+      competencias: f.dpl_rubricaid ? competenciasDeRubrica.get(f.dpl_rubricaid as string) ?? [] : [],
     }
   }
   return { nombres, cursoDe, cursoTexto, contextoDe }
