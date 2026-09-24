@@ -138,7 +138,9 @@ export async function getCursoContexto(cursoId: string): Promise<CursoContexto> 
       .select('dpl_sesionid, dpl_elemento, dpl_idsesiontext, dpl_unidadid')
       .in('dpl_unidadid', unidadIds)
     fail(e4, 'No se pudieron cargar los elementos.')
-    sesiones = ss ?? []
+    // dpl_sesion holds every session of the syllabus; only the ones with an
+    // assigned element (ElementoAsignado) are evaluation elements.
+    sesiones = (ss ?? []).filter(s => typeof s.dpl_elemento === 'string' && s.dpl_elemento.trim() !== '')
     const sesionIds = sesiones.map(s => s.dpl_sesionid as string)
     if (sesionIds.length) {
       const { data: cs, error: e5 } = await supabase
