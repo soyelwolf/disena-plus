@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Icon, { type IconName } from '../components/Icon'
 import Aprobaciones from '../components/Aprobaciones'
-import { Breadcrumbs, Cargando, CursoHeader, ErrorPanel, Modal, ProgressBar, SavingOverlay, useToast } from '../components/ui'
+import { Breadcrumbs, Cargando, CursoHeader, Drawer, ErrorPanel, Modal, ProgressBar, SavingOverlay, Spinner, useToast } from '../components/ui'
 import { useAuth } from '../shared/AuthContext'
 import {
   ESTADO_LABEL,
   activarProceso,
+  asignarProceso,
   getActivacion,
   type EstadoActivacion,
   type ProcesoActivable,
@@ -35,6 +36,7 @@ export default function HubCurso() {
   const { ctx, proceso, error, loading, recargar } = useContenidoAcademico(cursoId)
   const [rubricas, setRubricas] = useState<RubricasCurso | null>(null)
   const [verFlujo, setVerFlujo] = useState(false)
+  const [verAsignar, setVerAsignar] = useState(false)
   const { can, user } = useAuth()
   const toast = useToast()
   const [activacion, setActivacion] = useState<Record<ProcesoActivable, EstadoActivacion> | null>(null)
@@ -135,9 +137,16 @@ export default function HubCurso() {
         tipoEnsenanza={ctx.tipoEnsenanza}
         programas={ctx.programas}
         acciones={
-          <button className="link-btn" style={{ fontSize: 15 }} onClick={() => setVerFlujo(true)}>
-            Flujo de trabajo <Icon name="eye" size={18} />
-          </button>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            {can('administrar_datos') && (
+              <button className="btn btn-outline btn-sm" onClick={() => setVerAsignar(true)}>
+                <Icon name="check" size={15} />Asignar procesos
+              </button>
+            )}
+            <button className="link-btn" style={{ fontSize: 15 }} onClick={() => setVerFlujo(true)}>
+              Flujo de trabajo <Icon name="eye" size={18} />
+            </button>
+          </span>
         }
       />
 
@@ -217,6 +226,15 @@ export default function HubCurso() {
         Se prepararán los elementos del curso para que puedas trabajar este proceso. <b>Ten presente que solo lo puedes hacer una vez.</b>
       </Modal>
       <SavingOverlay show={activando} label="Activando…" />
+      <AsignarProcesos
+        open={verAsignar}
+        onClose={() => setVerAsignar(false)}
+        cursoId={ctx.id}
+        activacion={activacion}
+        onCambio={async () => {
+          await recargar()
+        }}
+      />
       <Aprobaciones open={verFlujo} onClose={() => setVerFlujo(false)} cursoId={ctx.id} proceso={proceso} onCambio={recargar} />
     </div>
   )
@@ -271,4 +289,74 @@ function TarjetaProceso({ t, onActivar, motivoBloqueo }: { t: Tarjeta; onActivar
     return <Link to={t.to} className="hub-card">{contenido}</Link>
   }
   return <div className="hub-card hub-card-off">{contenido}</div>
+}
+
+const PROCESOS_ASIGNABLES: Array<{ proceso: ProcesoActivable; label: string; columna: string }> = [
+  { proceso: 'consignas', label: 'Consignas', columna: 'Permite_Consignas' },
+  { proceso: 'rubrica', label: 'Rúbricas', columna: 'Permite_Rubricas' },
+  { proceso: 'matriz', label: 'Matriz', columna: 'Permite_Matriz_SN' },
+  { proceso: 'lista', label: 'Lista de cotejo', columna: 'Permite_ListaCotejo' },
+  { proceso: 'escala', label: 'Escala de valoración', columna: 'Permite_Escala' },
+]
+
+/** Admin: tick the processes of the course (the Permite_* checks of LISTADO_CURSOS_PARA_IA). */
+function AsignarProcesos(props: {
+  open: boolean
+  onClose: () => void
+  cursoId: string
+  activacion: Record<ProcesoActivable, EstadoActivacion> | null
+  onCambio: () => Promise<void>
+}) {
+  const { open, onClose, cursoId, activacion, onCambio } = props
+  const toast = useToast()
+  const [guardando, setGuardando] = useState<ProcesoActivable | null>(null)
+
+  const cambiar = async (p: ProcesoActivable, valor: boolean) => {
+    setGuardando(p)
+    try {
+      await asignarProceso(cursoId, p, valor)
+      await onCambio()
+      toast(valor ? 'Proceso asignado' : 'Proceso quitado')
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo guardar.', 'error')
+    } finally {
+      setGuardando(null)
+    }
+  }
+
+  return (
+    <Drawer open={open} onClose={onClose} title="Asignar procesos" footer={<button className="btn btn-primary" onClick={onClose}>Listo</button>}>
+      <p style={{ fontSize: 14, lineHeight: 1.5, color: '#3d434a' }}>
+        Marca los procesos que trabajará este curso. Es la misma casilla <b>Permite_*</b> de LISTADO_CURSOS_PARA_IA en el Centro de datos.
+        Luego, en cada tarjeta, se pulsa <b>Activar</b> para preparar los elementos.
+      </p>
+      {PROCESOS_ASIGNABLES.map(({ proceso: p, label, columna }) => {
+        const est = activacion?.[p]
+        const activado = !!est?.activado
+        return (
+          <label key={p} className="asignar-proceso">
+            <input
+              type="checkbox"
+              checked={!!est?.asignado}
+              disabled={!activacion || guardando !== null || (activado && !!est?.asignado)}
+              onChange={e => cambiar(p, e.target.checked)}
+            />
+            <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <b style={{ fontSize: 14 }}>{label}</b>
+              <small style={{ color: 'var(--color-text-muted)' }}>{columna}</small>
+            </span>
+            {guardando === p ? (
+              <Spinner />
+            ) : activado ? (
+              <span className="chip chip-aprobado" title="Ya se activó: no se puede quitar"><Icon name="checkCircle" size={13} />Activado</span>
+            ) : est?.asignado ? (
+              <span className="chip chip-revision">Por activar</span>
+            ) : (
+              <span className="chip">No asignado</span>
+            )}
+          </label>
+        )
+      })}
+    </Drawer>
+  )
 }

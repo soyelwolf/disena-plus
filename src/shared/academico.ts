@@ -962,6 +962,21 @@ const COLUMNA_ACTIVADO: Record<ProcesoActivable, string[]> = {
   escala: ['dpl_ia_escala_corrido'],
 }
 
+/** Permite_* check of LISTADO_CURSOS_PARA_IA for each process. */
+export const COLUMNA_PERMITE: Record<ProcesoActivable, string> = {
+  consignas: 'dpl_permiteconsignas',
+  rubrica: 'dpl_permiterubricas',
+  matriz: 'dpl_permitematrizsn',
+  lista: 'dpl_permitelistacotejo',
+  escala: 'dpl_permiteescala',
+}
+
+/** Admin assigns (or removes) a process for the course. */
+export async function asignarProceso(cursoId: string, proceso: ProcesoActivable, valor: boolean): Promise<void> {
+  const { error } = await supabase.from('dpl_curso').update({ [COLUMNA_PERMITE[proceso]]: valor }).eq('dpl_cursoid', cursoId)
+  fail(error, 'No se pudo asignar el proceso.')
+}
+
 export async function getActivacion(ctx: CursoContexto): Promise<Record<ProcesoActivable, EstadoActivacion>> {
   const { data, error } = await supabase.from('dpl_curso').select('*').eq('dpl_cursoid', ctx.id).single()
   fail(error, 'No se pudo cargar el estado de activación.')
@@ -1034,7 +1049,8 @@ export async function activarProceso(ctx: CursoContexto, proceso: ProcesoActivab
       }
     }
   }
-  const marcas = Object.fromEntries(COLUMNA_ACTIVADO[proceso].map(c => [c, true]))
+  // Activating also leaves the process ticked as assigned (Permite_*).
+  const marcas = { ...Object.fromEntries(COLUMNA_ACTIVADO[proceso].map(c => [c, true])), [COLUMNA_PERMITE[proceso]]: true }
   const { error } = await supabase.from('dpl_curso').update(marcas).eq('dpl_cursoid', ctx.id)
   fail(error, 'No se pudo marcar el proceso como activado.')
   return creados

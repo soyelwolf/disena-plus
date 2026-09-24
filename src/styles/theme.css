@@ -659,3 +659,5 @@ body.con-panel-comentarios .shell-main { padding-right: 440px; }
 @media (max-width: 900px) { body.con-panel-comentarios .shell-main { padding-right: 40px; } }
 .nivel-zona, .nivel-zona > div { height: 100%; }
 .niveles > div + div .nivel { border-left: 1px solid var(--color-border); }
+.asignar-proceso { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; }
+.asignar-proceso input { width: 18px; height: 18px; accent-color: var(--color-primary); }
