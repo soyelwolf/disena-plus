@@ -21,12 +21,16 @@ export default function ListadoCursos() {
   const navigate = useNavigate()
   const { user, can } = useAuth()
   // Only Administradores see every course; everyone else sees their assigned ones.
-  const verTodo = can('ver_todo') || !user?.usuarioId
+  // Everyone — administrators included — starts with just their assigned
+  // courses; administrators can switch to the whole catalogue.
+  const esAdmin = can('ver_todo')
+  const [mostrarTodos, setMostrarTodos] = useState(false)
+  const verTodo = (esAdmin && mostrarTodos) || !user?.usuarioId
   const [asignados, setAsignados] = useState<Set<string> | null>(null)
   useEffect(() => {
-    if (verTodo || !user?.usuarioId) return
+    if (!user?.usuarioId) return
     getCursosAsignados(user.usuarioId).then(setAsignados).catch(() => setAsignados(new Set()))
-  }, [verTodo, user?.usuarioId])
+  }, [user?.usuarioId])
   const [busqueda, setBusqueda] = useState('')
   const [tipo, setTipo] = useState('')
 
@@ -63,7 +67,13 @@ export default function ListadoCursos() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div className="row-between">
-        <h1 style={{ fontSize: 28, fontWeight: 700 }}>Cursos</h1>
+        <h1 style={{ fontSize: 28, fontWeight: 700 }}>{verTodo && esAdmin ? 'Todos los cursos' : 'Mis cursos'}</h1>
+        {esAdmin && user?.usuarioId && (
+          <label className="radio" title="Solo para administradores">
+            <input type="checkbox" checked={mostrarTodos} onChange={e => setMostrarTodos(e.target.checked)} />
+            Ver todos los cursos (administrador)
+          </label>
+        )}
         {!isLoading && error && <span className="badge badge-warning">Sin conexión a la base · datos de ejemplo</span>}
       </div>
 

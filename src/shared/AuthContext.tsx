@@ -8,7 +8,8 @@
 // they may do is derived from the union of their roles' permissions — screens
 // check permissions, never role names, so new roles only need a PERMISOS entry.
 
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { buscarUsuario } from './academico'
 
 export type UserRole =
   | 'administrador'
@@ -109,6 +110,25 @@ export function rolesLabel(roles: UserRole[]): string {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(leerSesion)
+
+  // A session started before the users table existed has no usuarioId: refresh
+  // it from dpl_usuario so name, roles and assigned courses are the real ones.
+  useEffect(() => {
+    if (!user || user.usuarioId) return
+    buscarUsuario(user.correo)
+      .then(({ tabla, usuario }) => {
+        if (!tabla) return
+        if (!usuario) {
+          guardarSesion(null)
+          setUser(null)
+          return
+        }
+        const next: SessionUser = { nombre: usuario.nombre, correo: usuario.correo, roles: normalizarRoles(usuario.roles), usuarioId: usuario.id }
+        guardarSesion(next)
+        setUser(next)
+      })
+      .catch(() => {})
+  }, [user])
 
   const value = useMemo<AuthContextValue>(() => {
     const permisos = new Set((user?.roles ?? []).flatMap(r => PERMISOS[r]))
