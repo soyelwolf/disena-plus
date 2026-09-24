@@ -17,6 +17,12 @@ export interface TablaConfig {
   etiqueta?: string
   /** Columns shown first, in this order. */
   orden?: string[]
+  /** Header overrides for this list only (the same column can mean different things). */
+  etiquetas?: Record<string, string>
+  /** Columns not shown in this list (still in the database / export source). */
+  ocultas?: string[]
+  /** Columns shown but not editable here (filled automatically). */
+  soloLectura?: string[]
 }
 
 /** Folders of the Centro de datos menu, in display order (like the SharePoint site navigation). */
@@ -32,8 +38,17 @@ export const TABLAS: TablaConfig[] = [
     orden: [
       'dpl_idunidadtext', 'dpl_numerounidad', 'dpl_nombreunidad', 'dpl_logroespecifico', 'dpl_temasesiones', 'dpl_realizado',
       'dpl_elementoasignado', 'dpl_nivelcomplejidad', 'dpl_queseevaluar', 'dpl_instrumentoevaluacion',
-      'dpl_elementocatalogo', 'dpl_elementocatalogoabreviatura', 'dpl_elementocatalogodescripcion',
+      'dpl_catalogoelementoid', 'dpl_elementocatalogoabreviatura', 'dpl_elementocatalogodescripcion',
     ],
+    // Elemento_Catalogo is a lookup to CATALOGO_ELEMENTOS; its abbreviation and
+    // description come from the catalogue (kept as text for the Excel export).
+    ocultas: ['dpl_elementocatalogo'],
+    soloLectura: ['dpl_elementocatalogoabreviatura', 'dpl_elementocatalogodescripcion'],
+  },
+  {
+    grupo: 'Cursos', tabla: 'dpl_catalogoelemento', pk: 'dpl_catalogoelementoid', titulo: 'CATALOGO_ELEMENTOS', descripcion: 'Tipos de elemento de evaluación', etiqueta: 'dpl_elemento',
+    orden: ['dpl_tipo', 'dpl_elemento', 'dpl_abreviatura', 'dpl_descripcion'],
+    etiquetas: { dpl_tipo: 'TIPO', dpl_abreviatura: 'ABREVIATURA', dpl_elemento: 'ELEMENTO', dpl_descripcion: 'DESCRIPCIÓN' },
   },
   {
     grupo: 'Cursos', tabla: 'dpl_sesion', pk: 'dpl_sesionid', titulo: 'SESIONES_CURSOS_IA', descripcion: 'Sesiones del sílabo', etiqueta: 'dpl_elemento',
@@ -140,6 +155,7 @@ const ETIQUETAS: Record<string, string> = {
   dpl_competenciaid: 'Competencia',
   dpl_rubricaid: 'Rúbrica',
   dpl_rubricacriterioid: 'Criterio',
+  dpl_catalogoelementoid: 'Elemento_Catalogo',
 }
 
 /** Foreign-key columns → the table they point at (shown by name, not id). */
@@ -151,6 +167,7 @@ export const REFERENCIAS: Record<string, string> = {
   dpl_competenciaid: 'dpl_competencia',
   dpl_rubricaid: 'dpl_rubrica',
   dpl_rubricacriterioid: 'dpl_rubricacriterio',
+  dpl_catalogoelementoid: 'dpl_catalogoelemento',
   dpl_matrizid: 'dpl_matriz',
   dpl_listacotejoid: 'dpl_listacotejo',
   dpl_escalavaloracionid: 'dpl_escalavaloracion',
@@ -159,7 +176,20 @@ export const REFERENCIAS: Record<string, string> = {
 /** System columns hidden from the grid (still exported). */
 const OCULTAS = new Set(['statecode', 'statuscode', 'createdon', 'modifiedon'])
 
-export function etiquetaColumna(col: string): string {
+/** Lookup columns that can be changed by picking a value (the rest are structural). */
+export const REFERENCIAS_EDITABLES = new Set(['dpl_catalogoelementoid'])
+
+/** Options of a lookup: every row of the target table by its name. */
+export async function opcionesReferencia(col: string): Promise<Array<{ id: string; nombre: string; fila: Record<string, unknown> }>> {
+  const destino = TABLAS.find(t => t.tabla === REFERENCIAS[col])
+  if (!destino?.etiqueta) return []
+  const { data, error } = await supabase.from(destino.tabla).select('*').order(destino.etiqueta, { ascending: true }).limit(10000)
+  if (error) throw new Error(error.message)
+  return ((data ?? []) as Array<Record<string, unknown>>).map(f => ({ id: f[destino.pk] as string, nombre: String(f[destino.etiqueta!] ?? ''), fila: f }))
+}
+
+export function etiquetaColumna(col: string, cfg?: TablaConfig): string {
+  if (cfg?.etiquetas?.[col]) return cfg.etiquetas[col]
   if (ETIQUETAS[col]) return ETIQUETAS[col]
   return col.replace(/^dpl_/, '').replace(/_/g, ' ')
 }
@@ -167,7 +197,7 @@ export function etiquetaColumna(col: string): string {
 export function columnasVisibles(filas: Array<Record<string, unknown>>, cfg: TablaConfig): string[] {
   const cols = new Set<string>()
   for (const f of filas.slice(0, 50)) Object.keys(f).forEach(k => cols.add(k))
-  const todas = [...cols].filter(c => c !== cfg.pk && !OCULTAS.has(c))
+  const todas = [...cols].filter(c => c !== cfg.pk && !OCULTAS.has(c) && !cfg.ocultas?.includes(c))
   const primero = (cfg.orden ?? []).filter(c => todas.includes(c))
   return [...primero, ...todas.filter(c => !primero.includes(c))]
 }

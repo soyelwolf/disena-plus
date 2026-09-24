@@ -26,6 +26,8 @@ import {
   descargarCsv,
   eliminarFila,
   etiquetaColumna,
+  opcionesReferencia,
+  REFERENCIAS_EDITABLES,
   type Relaciones,
   type TablaConfig,
 } from '../shared/centroDatos'
@@ -167,6 +169,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
   const [limite, setLimite] = useState(PAGINA)
   const [edicion, setEdicion] = useState<{ fila: Record<string, unknown>; col: string; valor: string } | null>(null)
   const [borrar, setBorrar] = useState<Record<string, unknown> | null>(null)
+  const [referencia, setReferencia] = useState<{ fila: Record<string, unknown>; col: string } | null>(null)
 
   const cargar = useCallback(async () => {
     setError(null)
@@ -218,7 +221,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
     },
     [nombres, rel, extraPorKey],
   )
-  const etiqueta = (c: string) => (c === ID_CURSO_VIRTUAL ? 'ID_CURSO' : extraPorKey.get(c)?.label ?? etiquetaColumna(c))
+  const etiqueta = (c: string) => (c === ID_CURSO_VIRTUAL ? 'ID_CURSO' : extraPorKey.get(c)?.label ?? etiquetaColumna(c, cfg))
 
   useEffect(() => {
     // Re-read when the parent signals its extra columns changed (e.g. assignments saved).
@@ -367,10 +370,19 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
                   if (typeof v === 'boolean')
                     return (
                       <td key={c} style={{ textAlign: 'center' }}>
-                        <input type="checkbox" checked={v} onChange={() => alternar(f, c)} aria-label={etiquetaColumna(c)} />
+                        <input type="checkbox" checked={v} onChange={() => alternar(f, c)} aria-label={etiqueta(c)} />
                       </td>
                     )
-                  const soloLectura = !!REFERENCIAS[c] || Array.isArray(v) || (typeof v === 'object' && v !== null)
+                  if (REFERENCIAS_EDITABLES.has(c))
+                    return (
+                      <td key={c}>
+                        <button className="celda celda-edit" title="Clic para elegir" onClick={() => setReferencia({ fila: f, col: c })}>
+                          {texto(f, c) || <span style={{ color: '#a1a7ad' }}>— Elegir —</span>}
+                        </button>
+                      </td>
+                    )
+                  const soloLectura =
+                    !!REFERENCIAS[c] || !!cfg.soloLectura?.includes(c) || Array.isArray(v) || (typeof v === 'object' && v !== null)
                   return (
                     <td key={c}>
                       {soloLectura ? (
@@ -400,7 +412,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
       <Drawer
         open={!!edicion}
         onClose={() => setEdicion(null)}
-        title={edicion ? `Editar: ${etiquetaColumna(edicion.col)}` : ''}
+        title={edicion ? `Editar: ${etiqueta(edicion.col)}` : ''}
         footer={
           <>
             <button className="btn btn-outline" onClick={() => setEdicion(null)}>Cancelar</button>
@@ -418,6 +430,33 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
             </>
           ))}
       </Drawer>
+      {referencia && (
+        <ElegirReferencia
+          titulo={etiqueta(referencia.col)}
+          col={referencia.col}
+          actual={referencia.fila[referencia.col] as string | null}
+          onClose={() => setReferencia(null)}
+          onElegir={async opcion => {
+            const { fila, col } = referencia
+            // Picking a catalogue element also refreshes the copied abbreviation/description.
+            const cambios: Record<string, unknown> = { [col]: opcion?.id ?? null }
+            if (col === 'dpl_catalogoelementoid' && cfg.tabla === 'dpl_unidad') {
+              cambios.dpl_elementocatalogo = opcion ? opcion.fila.dpl_elemento : null
+              cambios.dpl_elementocatalogoabreviatura = opcion ? opcion.fila.dpl_abreviatura : null
+              cambios.dpl_elementocatalogodescripcion = opcion ? opcion.fila.dpl_descripcion : null
+            }
+            try {
+              for (const [k, v] of Object.entries(cambios)) await actualizarCelda(cfg, fila[cfg.pk] as string, k, v)
+              setFilas(prev => prev && prev.map(f => (f[cfg.pk] === fila[cfg.pk] ? { ...f, ...cambios } : f)))
+              if (opcion) setNombres(prev => new Map(prev).set(opcion.id, opcion.nombre))
+              setReferencia(null)
+              toast('Se guardó información con éxito')
+            } catch (err) {
+              toast(err instanceof Error ? err.message : 'No se pudo guardar.', 'error')
+            }
+          }}
+        />
+      )}
       <Modal
         open={!!borrar}
         title="¿Eliminar registro?"
@@ -932,5 +971,62 @@ function FiltroColumna(props: {
         <button className="btn btn-primary btn-sm" onClick={onCerrar}>Listo</button>
       </div>
     </div>
+  )
+}
+
+/** Pick the value of a lookup column (e.g. Elemento_Catalogo) from its catalogue. */
+function ElegirReferencia(props: {
+  titulo: string
+  col: string
+  actual: string | null
+  onClose: () => void
+  onElegir: (opcion: { id: string; nombre: string; fila: Record<string, unknown> } | null) => void
+}) {
+  const { titulo, col, actual, onClose, onElegir } = props
+  const [opciones, setOpciones] = useState<Array<{ id: string; nombre: string; fila: Record<string, unknown> }> | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    opcionesReferencia(col).then(setOpciones).catch(err => setError(err instanceof Error ? err.message : 'Error'))
+  }, [col])
+  const q = busqueda.trim().toLowerCase()
+  const lista = (opciones ?? []).filter(o => !q || o.nombre.toLowerCase().includes(q) || String(o.fila.dpl_abreviatura ?? '').toLowerCase().includes(q))
+
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      title={`Elegir ${titulo}`}
+      footer={
+        <>
+          {actual && <button className="btn btn-outline" onClick={() => onElegir(null)}>Dejar vacío</button>}
+          <button className="btn btn-primary" onClick={onClose}>Cancelar</button>
+        </>
+      }
+    >
+      {error && <p className="field-error">{error}</p>}
+      {!opciones && !error && <p style={{ color: 'var(--color-text-muted)' }}>Cargando…</p>}
+      {opciones && (
+        <>
+          <div className="input-box">
+            <input type="search" autoFocus placeholder="Buscar" value={busqueda} onChange={e => setBusqueda(e.target.value)} aria-label="Buscar" />
+            <Icon name="search" size={16} strokeWidth={2} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {lista.map(o => (
+              <button key={o.id} className={`referencia-op${o.id === actual ? ' actual' : ''}`} onClick={() => onElegir(o)}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {o.fila.dpl_abreviatura ? <span className="criterio-num">{String(o.fila.dpl_abreviatura)}</span> : null}
+                  <b>{o.nombre}</b>
+                  {o.id === actual && <span style={{ marginLeft: 'auto', color: 'var(--color-primary)', display: 'flex' }}><Icon name="check" size={16} strokeWidth={2.4} /></span>}
+                </span>
+                {o.fila.dpl_descripcion ? <span style={{ fontSize: 12, color: 'var(--color-text-muted)', lineHeight: 1.45 }}>{String(o.fila.dpl_descripcion)}</span> : null}
+              </button>
+            ))}
+            {lista.length === 0 && <p style={{ color: 'var(--color-text-muted)' }}>Sin coincidencias.</p>}
+          </div>
+        </>
+      )}
+    </Drawer>
   )
 }

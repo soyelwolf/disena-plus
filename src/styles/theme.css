@@ -590,3 +590,6 @@ fieldset:disabled .radio { cursor: default; opacity: 0.8; }
 .filtro-chip button { border: none; background: transparent; color: inherit; display: flex; padding: 2px; border-radius: 50%; }
 .filtro-chip button:hover { background: rgba(0, 0, 0, 0.08); }
 .datos-tabla-wrap { min-height: 380px; }
+.referencia-op { display: flex; flex-direction: column; gap: 4px; text-align: left; border: 1px solid var(--color-border); background: #fff; border-radius: 6px; padding: 10px 12px; font: inherit; font-size: 14px; color: var(--color-text); }
+.referencia-op:hover { border-color: var(--color-primary); background: #f7fbfa; }
+.referencia-op.actual { border-color: var(--color-primary); box-shadow: 0 0 0 2px rgba(0, 92, 75, 0.12); }
