@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
+import { MensajeFinalizado } from '../components/Aprobaciones'
 import { BotonComentarios, CAMPO_GENERAL, PanelComentarios, ZonaComentable, datosItem, type FiltroComentarios } from '../components/Comentarios'
 import { VistaRica } from '../components/TextoEnriquecido'
 import { Link } from 'react-router-dom'
@@ -400,7 +401,7 @@ export default function RubricasPage() {
       </Modal>
       <Modal
         open={modal === 'enviado'}
-        title="Se avisó a los aprobadores para que revisen la información."
+        title="Todo finalizado: se avisó al Monitor EA y DDA"
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
@@ -408,11 +409,11 @@ export default function RubricasPage() {
       </Modal>
       <Modal
         open={modal === 'finalizado'}
-        title="Rúbricas finalizadas"
+        title="Rúbricas finalizadas: aún falta para avisar a los aprobadores"
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        Puedes seguir editando. Cuando finalices también las Consignas, se avisará a los aprobadores para que revisen todo el proceso.
+        <MensajeFinalizado parte="rubricas" requeridos={instrumentosRequeridos(ctx, datos)} finalizado={proceso.finalizado} />
       </Modal>
       <Modal
         open={!!eliminar}

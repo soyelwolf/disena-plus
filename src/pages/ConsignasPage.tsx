@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
+import { MensajeFinalizado } from '../components/Aprobaciones'
 import { BotonComentarios, CAMPO_GENERAL, PanelComentarios, ZonaComentable, datosItem, type FiltroComentarios } from '../components/Comentarios'
 import TextoEnriquecido from '../components/TextoEnriquecido'
 import DatosAdjuntos from '../components/DatosAdjuntos'
@@ -57,6 +58,7 @@ export default function ConsignasPage() {
   const [guardado, setGuardado] = useState<EstadoGuardado>('idle')
   const [modal, setModal] = useState<null | 'confirmar' | 'incompleto' | 'enviado' | 'finalizado' | 'ia'>(null)
   const [finalizando, setFinalizando] = useState(false)
+  const [requeridos, setRequeridos] = useState<string[]>(['consignas'])
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [filtro, setFiltro] = useState<FiltroComentarios | null>(null)
   const [activada, setActivada] = useState<boolean | null>(null)
@@ -202,7 +204,9 @@ export default function ConsignasPage() {
     setFinalizando(true)
     try {
       const rubricas = await getRubricasCurso(ctx)
-      const { enviado } = await finalizarInstrumento(ctx.id, 'consignas', instrumentosRequeridos(ctx, rubricas), proceso, user.correo)
+      const req = instrumentosRequeridos(ctx, rubricas)
+      setRequeridos(req)
+      const { enviado } = await finalizarInstrumento(ctx.id, 'consignas', req, proceso, user.correo)
       await recargar()
       setModal(enviado ? 'enviado' : 'finalizado')
     } catch (err) {
@@ -391,7 +395,7 @@ export default function ConsignasPage() {
       </Modal>
       <Modal
         open={modal === 'enviado'}
-        title="Se avisó a los aprobadores para que revisen la información."
+        title="Todo finalizado: se avisó al Monitor EA y DDA"
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
@@ -399,11 +403,11 @@ export default function ConsignasPage() {
       </Modal>
       <Modal
         open={modal === 'finalizado'}
-        title="Consignas finalizadas"
+        title="Consignas finalizadas: aún falta para avisar a los aprobadores"
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        Puedes seguir editando. Cuando finalices también las Rúbricas, se avisará a los aprobadores para que revisen todo el proceso.
+        <MensajeFinalizado parte="consignas" requeridos={requeridos} finalizado={proceso.finalizado} />
       </Modal>
       <Modal
         open={modal === 'ia'}

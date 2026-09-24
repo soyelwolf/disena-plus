@@ -179,3 +179,31 @@ const ACCION_LABEL: Record<EventoProceso['accion'], string> = {
   devuelto: 'Devuelto con comentarios',
   habilitado: 'Edición habilitada',
 }
+
+const PARTE_LABEL: Record<string, string> = { consignas: 'Consignas', rubricas: 'Rúbricas', matriz: 'Matriz', lista: 'Lista de cotejo', escala: 'Escala de valoración' }
+
+/**
+ * Message after "Finalizar edición general" of one part: the process is one
+ * (consignas + the instruments the course uses) and the approvers are notified
+ * only once every part is finalized.
+ */
+export function MensajeFinalizado({ parte, requeridos, finalizado }: { parte: string; requeridos: string[]; finalizado: Record<string, boolean> }) {
+  const faltan = requeridos.filter(r => !finalizado[r])
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <span>
+        Marcaste {PARTE_LABEL[parte] ?? parte} como terminada. El Monitor EA y DDA revisan el <b>Diseño de contenido académico completo</b>, así que el aviso se
+        envía cuando todas estas partes estén finalizadas:
+      </span>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {requeridos.map(r => (
+          <li key={r} style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: finalizado[r] ? '#0a7a3e' : '#8a4b00' }}>
+            <Icon name={finalizado[r] ? 'checkCircle' : 'clock'} size={16} />
+            {PARTE_LABEL[r] ?? r}: {finalizado[r] ? 'finalizada' : 'falta pulsar «Finalizar edición general»'}
+          </li>
+        ))}
+      </ul>
+      {faltan.length > 0 && <span>Puedes seguir editando mientras tanto.</span>}
+    </div>
+  )
+}
