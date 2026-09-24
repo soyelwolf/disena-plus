@@ -571,8 +571,8 @@ export type InstrumentoFlujo = 'consignas' | 'rubricas'
 
 export const ESTADO_LABEL: Record<EstadoProceso, string> = {
   en_edicion: 'En edición',
-  revision_monitor: 'En revisión · Monitor EA',
-  revision_dda: 'En revisión · DDA',
+  revision_monitor: 'En revisión',
+  revision_dda: 'En revisión · aprobado por Monitor EA',
   aprobado: 'Aprobado',
 }
 

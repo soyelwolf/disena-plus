@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import Icon, { type IconName } from '../components/Icon'
 import Aprobaciones from '../components/Aprobaciones'
+import VisorPdf from '../components/VisorPdf'
+import { DOCUMENTOS, listarDocumentos, nombreDescarga, type DocumentoCurso, type TipoDocumento } from '../shared/documentosCurso'
 import { Breadcrumbs, Cargando, CursoHeader, Drawer, ErrorPanel, Modal, ProgressBar, SavingOverlay, Spinner, useToast } from '../components/ui'
 import { useAuth } from '../shared/AuthContext'
 import {
@@ -37,6 +39,12 @@ export default function HubCurso() {
   const [rubricas, setRubricas] = useState<RubricasCurso | null>(null)
   const [verFlujo, setVerFlujo] = useState(false)
   const [verAsignar, setVerAsignar] = useState(false)
+  // Sílabo and formato de orientación of the course (PDFs uploaded in Mis cursos / Centro de datos).
+  const [docs, setDocs] = useState<Map<string, DocumentoCurso> | null>(null)
+  const [visor, setVisor] = useState<DocumentoCurso | null>(null)
+  useEffect(() => {
+    listarDocumentos().then(setDocs).catch(() => setDocs(new Map()))
+  }, [])
   const { can, user } = useAuth()
   const toast = useToast()
   const [activacion, setActivacion] = useState<Record<ProcesoActivable, EstadoActivacion> | null>(null)
@@ -137,7 +145,21 @@ export default function HubCurso() {
         tipoEnsenanza={ctx.tipoEnsenanza}
         programas={ctx.programas}
         acciones={
-          <span style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {(['silabo', 'formato'] as TipoDocumento[]).map(t => {
+              const doc = docs?.get(`${ctx.id}|${t}`)
+              return (
+                <button
+                  key={t}
+                  className="btn btn-outline btn-sm"
+                  disabled={!doc}
+                  title={doc ? `Ver ${DOCUMENTOS[t].label}` : docs ? `Este curso aún no tiene ${DOCUMENTOS[t].label.toLowerCase()} cargado` : 'Cargando…'}
+                  onClick={() => doc && setVisor(doc)}
+                >
+                  <Icon name="pdf" size={15} />{DOCUMENTOS[t].label}
+                </button>
+              )
+            })}
             {can('administrar_datos') && (
               <button className="btn btn-outline btn-sm" onClick={() => setVerAsignar(true)}>
                 <Icon name="check" size={15} />Asignar procesos
@@ -226,6 +248,14 @@ export default function HubCurso() {
         Se prepararán los elementos del curso para que puedas trabajar este proceso. <b>Ten presente que solo lo puedes hacer una vez.</b>
       </Modal>
       <SavingOverlay show={activando} label="Activando…" />
+      {visor && (
+        <VisorPdf
+          titulo={`${DOCUMENTOS[visor.tipo].label} · ${ctx.nombre}`}
+          url={visor.url}
+          nombreArchivo={nombreDescarga(visor.tipo, ctx.nombre)}
+          onClose={() => setVisor(null)}
+        />
+      )}
       <AsignarProcesos
         open={verAsignar}
         onClose={() => setVerAsignar(false)}
