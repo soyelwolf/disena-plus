@@ -661,3 +661,15 @@ body.con-panel-comentarios .shell-main { padding-right: 440px; }
 .niveles > div + div .nivel { border-left: 1px solid var(--color-border); }
 .asignar-proceso { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--color-border); border-radius: 6px; cursor: pointer; }
 .asignar-proceso input { width: 18px; height: 18px; accent-color: var(--color-primary); }
+
+.consignas-layout > .consigna-editor { flex: 1; min-width: 0; }
+.consignas-rail { width: 52px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 8px; position: sticky; top: calc(var(--header-height) + 16px); }
+.rail-item {
+  position: relative; width: 38px; height: 38px; border-radius: 50%; border: 1px solid var(--color-border); background: #fff;
+  font: inherit; font-size: 14px; font-weight: 700; color: #3d434a; cursor: pointer;
+}
+.rail-item:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.rail-item.completo { border-color: #9ed3b3; color: #0a7a3e; }
+.rail-item.active { background: var(--color-primary); border-color: var(--color-primary); color: #fff; }
+.rail-dot { position: absolute; top: -2px; right: -2px; width: 11px; height: 11px; border-radius: 50%; background: #e0b000; border: 2px solid #fff; }
+@media (max-width: 1000px) { .consignas-rail { flex-direction: row; width: 100%; position: static; flex-wrap: wrap; } }

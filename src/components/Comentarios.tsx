@@ -33,15 +33,17 @@ export function BotonComentarios(props: {
   activo?: boolean
 }) {
   const { estado, puedeComentar, onClick, label, activo } = props
+  // Shown on every item, also empty, so everyone knows where comments go.
   const hay = estado.abiertos + estado.resueltos > 0
-  if (!hay && !puedeComentar) return null
   const clase = estado.abiertos > 0 ? 'abierto' : hay ? 'resuelto' : 'vacio'
   const titulo =
     estado.abiertos > 0
       ? `${estado.abiertos} ${estado.abiertos === 1 ? 'comentario pendiente' : 'comentarios pendientes'}`
       : hay
         ? 'Comentarios resueltos'
-        : 'Agregar comentario'
+        : puedeComentar
+          ? 'Agregar comentario'
+          : 'Sin comentarios'
   return (
     <button
       type="button"
@@ -51,7 +53,7 @@ export function BotonComentarios(props: {
       aria-label={`${titulo}: ${label}`}
     >
       <Icon name="comment" size={16} />
-      <span className="coment-badge">{estado.abiertos > 0 ? estado.lados : hay ? '✓' : '+'}</span>
+      {(hay || puedeComentar) && <span className="coment-badge">{estado.abiertos > 0 ? estado.lados : hay ? '✓' : '+'}</span>}
     </button>
   )
 }

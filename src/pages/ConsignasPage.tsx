@@ -60,6 +60,22 @@ export default function ConsignasPage() {
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [filtro, setFiltro] = useState<FiltroComentarios | null>(null)
   const [activada, setActivada] = useState<boolean | null>(null)
+  // The elements list can be hidden to give the consigna the whole width (remembered per browser).
+  const [listaOculta, setListaOculta] = useState(() => {
+    try {
+      return localStorage.getItem('disena.consignas.listaOculta') === '1'
+    } catch {
+      return false
+    }
+  })
+  const cambiarLista = (oculta: boolean) => {
+    setListaOculta(oculta)
+    try {
+      localStorage.setItem('disena.consignas.listaOculta', oculta ? '1' : '0')
+    } catch {
+      // Storage blocked: the choice just isn't remembered.
+    }
+  }
   const pendientes = useRef(new Map<string, Partial<ConsignaCampos>>())
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
@@ -267,14 +283,42 @@ export default function ConsignasPage() {
         </div>
       ) : (
         <div className="consignas-layout">
+          {listaOculta ? (
+            <div className="consignas-rail">
+              <button className="nav-btn" aria-label="Mostrar elementos" title="Mostrar elementos" onClick={() => cambiarLista(false)}>
+                <Icon name="chevronRight" size={20} strokeWidth={2} />
+              </button>
+              {ctx.elementos.map((e, i) => {
+                const v = validaciones.get(e.sesionId)
+                const pendientesEl = comentarios.filter(c => !c.padreId && !c.resuelto && c.entidadId === e.consigna?.dpl_consignaid).length
+                return (
+                  <button
+                    key={e.sesionId}
+                    className={`rail-item${e.sesionId === seleccion ? ' active' : ''}${v?.completa ? ' completo' : ''}`}
+                    title={`${e.nombre}${v?.completa ? ' · completo' : ''}${pendientesEl ? ` · ${pendientesEl} comentarios pendientes` : ''}`}
+                    aria-label={e.nombre}
+                    onClick={() => setSeleccion(e.sesionId)}
+                  >
+                    {i + 1}
+                    {pendientesEl > 0 && <span className="rail-dot" />}
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
           <div className="consignas-lista">
-            <div className="row-between" style={{ padding: '0 4px' }}>
+            <div className="row-between" style={{ padding: '0 4px', gap: 8 }}>
               <span style={{ fontSize: 15, fontWeight: 700 }}>Elementos ({ctx.elementos.length})</span>
-              {todoCompleto ? (
-                <span className="chip chip-aprobado"><Icon name="checkCircle" size={14} />Completo</span>
-              ) : (
-                <span style={{ fontSize: 13, color: '#3d434a' }}>{completos} de {ctx.elementos.length} completados</span>
-              )}
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {todoCompleto ? (
+                  <span className="chip chip-aprobado"><Icon name="checkCircle" size={14} />Completo</span>
+                ) : (
+                  <span style={{ fontSize: 13, color: '#3d434a' }}>{completos} de {ctx.elementos.length} completados</span>
+                )}
+                <button className="nav-btn" aria-label="Ocultar elementos" title="Ocultar elementos" onClick={() => cambiarLista(true)}>
+                  <Icon name="chevronLeft" size={20} strokeWidth={2} />
+                </button>
+              </span>
             </div>
             <div style={{ padding: '0 4px 6px' }}><ProgressBar value={(completos / ctx.elementos.length) * 100} /></div>
             {ctx.elementos.map(e => {
@@ -305,6 +349,7 @@ export default function ConsignasPage() {
               </span>
             </div>
           </div>
+          )}
 
           {el && (
             <EditorConsigna
