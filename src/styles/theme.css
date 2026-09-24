@@ -573,3 +573,20 @@ fieldset:disabled .radio { cursor: default; opacity: 0.8; }
 .doc-chip:hover { background: #d3e8e2; }
 
 .hub-card-activar { border: 1px dashed var(--color-primary); background: #f7fbfa; }
+
+/* ── Column filters (Centro de datos) ───────────────────────────────── */
+.datos-tabla th { position: sticky; }
+.th-filtro { display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; font: inherit; font-weight: 700; color: inherit; padding: 2px 4px; margin: -2px -4px; border-radius: 4px; white-space: nowrap; }
+.th-filtro:hover { background: rgba(255, 255, 255, 0.55); }
+.th-filtro.activo { color: var(--color-primary); }
+.filtro-pop { position: absolute; top: calc(100% + 4px); left: 8px; z-index: 40; width: 280px; background: #fff; border-radius: 8px; box-shadow: var(--shadow-lg); padding: 10px; display: flex; flex-direction: column; gap: 8px; font-weight: 400; text-align: left; animation: fadeInUp 0.15s ease-out both; }
+.filtro-lista { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; }
+.filtro-op { display: flex !important; align-items: center; gap: 8px; padding: 5px 6px; margin: 0 !important; border-radius: 4px; font-size: 13px !important; font-weight: 400 !important; cursor: pointer; }
+.filtro-op:hover { background: var(--color-primary-light); }
+.filtro-op input { width: 15px; height: 15px; accent-color: var(--color-primary); flex-shrink: 0; }
+.filtro-valor { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filtro-op small { color: var(--color-text-muted); font-size: 11px; }
+.filtro-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; background: var(--color-primary-light); color: #0d4d3d; border-radius: 999px; padding: 4px 6px 4px 10px; }
+.filtro-chip button { border: none; background: transparent; color: inherit; display: flex; padding: 2px; border-radius: 50%; }
+.filtro-chip button:hover { background: rgba(0, 0, 0, 0.08); }
+.datos-tabla-wrap { min-height: 380px; }

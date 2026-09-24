@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon'
 import TextoEnriquecido from '../components/TextoEnriquecido'
 import VisorPdf from '../components/VisorPdf'
@@ -162,6 +162,8 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
   const [rel, setRel] = useState<Relaciones | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
+  const [filtros, setFiltros] = useState<Record<string, Set<string>>>({})
+  const [filtroAbierto, setFiltroAbierto] = useState<string | null>(null)
   const [limite, setLimite] = useState(PAGINA)
   const [edicion, setEdicion] = useState<{ fila: Record<string, unknown>; col: string; valor: string } | null>(null)
   const [borrar, setBorrar] = useState<Record<string, unknown> | null>(null)
@@ -225,9 +227,15 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
   const filtradas = useMemo(() => {
     if (!filas) return []
     const q = busqueda.trim().toLowerCase()
-    if (!q) return filas
-    return filas.filter(f => columnas.some(c => texto(f, c).toLowerCase().includes(q)))
-  }, [filas, busqueda, columnas, texto])
+    const activos = Object.entries(filtros).filter(([, v]) => v.size > 0)
+    return filas.filter(
+      f =>
+        // Column filters match exact values (C7 ≠ C71), like SharePoint's column filter.
+        activos.every(([c, valores]) => valores.has(valorFiltro(texto(f, c)))) &&
+        (!q || columnas.some(c => texto(f, c).toLowerCase().includes(q))),
+    )
+  }, [filas, busqueda, columnas, texto, filtros])
+  const hayFiltros = Object.values(filtros).some(v => v.size > 0)
 
   if (error) return <ErrorPanel mensaje={error} onRetry={cargar} />
   if (!filas) return <Cargando texto="Cargando tabla" />
@@ -300,11 +308,51 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
         </button>
       </div>
 
+      {hayFiltros && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Filtros:</span>
+          {Object.entries(filtros)
+            .filter(([, v]) => v.size > 0)
+            .map(([c, v]) => (
+              <span key={c} className="filtro-chip">
+                <b>{etiqueta(c)}:</b> {[...v].slice(0, 3).join(', ')}{v.size > 3 ? ` +${v.size - 3}` : ''}
+                <button aria-label={`Quitar filtro de ${etiqueta(c)}`} onClick={() => setFiltros(prev => ({ ...prev, [c]: new Set() }))}>
+                  <Icon name="close" size={13} strokeWidth={2.4} />
+                </button>
+              </span>
+            ))}
+          <button className="link-btn" style={{ fontSize: 13 }} onClick={() => setFiltros({})}>Limpiar filtros</button>
+        </div>
+      )}
       <div className="datos-tabla-wrap">
         <table className="datos-tabla">
           <thead>
             <tr>
-              {columnas.map(c => <th key={c}>{etiqueta(c)}</th>)}
+              {columnas.map(c => (
+                <th key={c}>
+                  <button
+                    className={`th-filtro${filtros[c]?.size ? ' activo' : ''}`}
+                    onClick={() => setFiltroAbierto(filtroAbierto === c ? null : c)}
+                    aria-expanded={filtroAbierto === c}
+                    title="Filtrar por esta columna"
+                  >
+                    {etiqueta(c)}
+                    <Icon name={filtros[c]?.size ? 'filtro' : 'chevronDown'} size={13} strokeWidth={2.2} />
+                  </button>
+                  {filtroAbierto === c && (
+                    <FiltroColumna
+                      titulo={etiqueta(c)}
+                      valores={filas.map(f => valorFiltro(texto(f, c)))}
+                      seleccion={filtros[c] ?? new Set()}
+                      onCambiar={sel => {
+                        setFiltros(prev => ({ ...prev, [c]: sel }))
+                        setLimite(PAGINA)
+                      }}
+                      onCerrar={() => setFiltroAbierto(null)}
+                    />
+                  )}
+                </th>
+              ))}
               <th aria-label="Acciones" />
             </tr>
           </thead>
@@ -813,6 +861,76 @@ function DocumentoCelda(props: {
       >
         Los docentes ya no lo verán en la lista de cursos.
       </Modal>
+    </div>
+  )
+}
+
+const VACIO = '(vacío)'
+const valorFiltro = (v: string) => (v.trim() === '' ? VACIO : v.length > 120 ? v.slice(0, 120) + '…' : v)
+
+/** SharePoint-style column filter: pick exact values from a searchable list. */
+function FiltroColumna(props: {
+  titulo: string
+  valores: string[]
+  seleccion: Set<string>
+  onCambiar: (sel: Set<string>) => void
+  onCerrar: () => void
+}) {
+  const { titulo, valores, seleccion, onCambiar, onCerrar } = props
+  const [busqueda, setBusqueda] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const cerrar = (e: MouseEvent) => {
+      const th = ref.current?.parentElement
+      if (th && !th.contains(e.target as Node)) onCerrar()
+    }
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && onCerrar()
+    document.addEventListener('mousedown', cerrar)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', cerrar)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [onCerrar])
+
+  const conteo = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const v of valores) m.set(v, (m.get(v) ?? 0) + 1)
+    return [...m.entries()].sort((a, b) =>
+      a[0] === VACIO ? 1 : b[0] === VACIO ? -1 : a[0].localeCompare(b[0], 'es', { numeric: true, sensitivity: 'base' }),
+    )
+  }, [valores])
+  const q = busqueda.trim().toLowerCase()
+  const visibles = conteo.filter(([v]) => !q || v.toLowerCase().includes(q)).slice(0, 300)
+
+  const alternar = (v: string) => {
+    const next = new Set(seleccion)
+    if (next.has(v)) next.delete(v)
+    else next.add(v)
+    onCambiar(next)
+  }
+
+  return (
+    <div className="filtro-pop" ref={ref} role="dialog" aria-label={`Filtrar ${titulo}`} onClick={e => e.stopPropagation()}>
+      <div className="input-box" style={{ height: 36 }}>
+        <input type="search" autoFocus placeholder="Buscar valor" value={busqueda} onChange={e => setBusqueda(e.target.value)} aria-label="Buscar valor" />
+        <Icon name="search" size={15} strokeWidth={2} />
+      </div>
+      <div className="filtro-lista">
+        {visibles.map(([v, n]) => (
+          <label key={v} className="filtro-op">
+            <input type="checkbox" checked={seleccion.has(v)} onChange={() => alternar(v)} />
+            <span className="filtro-valor" title={v}>{v}</span>
+            <small>{n}</small>
+          </label>
+        ))}
+        {visibles.length === 0 && <span style={{ fontSize: 13, color: 'var(--color-text-muted)', padding: 8 }}>Sin coincidencias</span>}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+        <button className="link-btn" style={{ fontSize: 12 }} disabled={!seleccion.size} onClick={() => onCambiar(new Set())}>Quitar filtro</button>
+        <button className="btn btn-primary btn-sm" onClick={onCerrar}>Listo</button>
+      </div>
     </div>
   )
 }
