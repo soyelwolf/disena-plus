@@ -99,7 +99,8 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
   Aprueba **Monitor EA** y luego **DDA** (DDA cierra y congela todo). Pueden devolver con
   comentarios. Solo **Monitor EA** puede "Habilitar edición" (incluso tras DDA); la aprobación
   vuelve a empezar.
-- Visibilidad: **solo Administrador ve todos los cursos**; el resto ve sus cursos asignados.
+- Activación (como los flujos CONSOLIDADO_INPUTS_* de Power Automate): el admin habilita procesos por curso (`Permite_*`); el docente pulsa **ACTIVAR** una sola vez por proceso (Consignas primero). Consignas crea una consigna por elemento; cada instrumento crea su cabecera por elemento cuya consigna lo eligió (Rúbrica = `rúbrica` + `matriz con rúbrica`). Estado ACTIVADO = columnas `dpl_ia_*_corrido`. Lógica en `activarProceso` (`academico.ts`).
+- Visibilidad: "Mis cursos" muestra solo los cursos asignados (también al admin, que puede marcar "Ver todos").
 - Roles: administrador, docente, asesor, monitor_ea, monitor_qa, monitor_disena, dda (se pueden
   sumar más). Las pantallas revisan **permisos** (`editar_contenido`, `aprobar_proceso`,
   `administrar_datos`, `ver_todo`), no nombres de rol.

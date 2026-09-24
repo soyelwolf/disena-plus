@@ -849,3 +849,103 @@ export async function getCriteriosDeElemento(sesionId: string): Promise<Criterio
   fail(e2, 'No se pudieron cargar los criterios.')
   return (data ?? []) as CriterioRow[]
 }
+
+// ── Activation ("¿Qué proceso activarás?") ───────────────────────────────────
+// Mirrors the Power Automate CONSOLIDADO_INPUTS_* flows: the administrator
+// enables processes per course (Permite_*); the teacher presses ACTIVAR once
+// per process, which creates that process's rows from the course data and
+// marks it done (IA_Para*_Corrido). Nothing is copied: rows point at the
+// course/unit/session, so the data stays in one place.
+
+export type ProcesoActivable = 'consignas' | 'rubrica' | 'matriz' | 'lista' | 'escala'
+
+export interface EstadoActivacion {
+  asignado: boolean
+  activado: boolean
+}
+
+const COLUMNA_ACTIVADO: Record<ProcesoActivable, string[]> = {
+  consignas: ['dpl_ia_consigna_corrido'],
+  rubrica: ['dpl_ia_rubrica_corrido'],
+  matriz: ['dpl_ia_matrizsinrubrica_corrido', 'dpl_ia_matrizconrubrica_corrido'],
+  lista: ['dpl_ia_lista_corrido'],
+  escala: ['dpl_ia_escala_corrido'],
+}
+
+export async function getActivacion(ctx: CursoContexto): Promise<Record<ProcesoActivable, EstadoActivacion>> {
+  const { data, error } = await supabase.from('dpl_curso').select('*').eq('dpl_cursoid', ctx.id).single()
+  fail(error, 'No se pudo cargar el estado de activación.')
+  const est = (p: ProcesoActivable, permite: boolean): EstadoActivacion => ({
+    asignado: permite,
+    activado: COLUMNA_ACTIVADO[p].some(c => !!data?.[c]),
+  })
+  return {
+    consignas: est('consignas', ctx.permite.consignas),
+    rubrica: est('rubrica', ctx.permite.rubrica),
+    matriz: est('matriz', ctx.permite.matriz),
+    lista: est('lista', ctx.permite.lista),
+    escala: est('escala', ctx.permite.escala),
+  }
+}
+
+/** Instruments (as stored in the consigna) that feed each process. */
+const INSTRUMENTOS_DE: Record<Exclude<ProcesoActivable, 'consignas'>, string[]> = {
+  rubrica: [INSTRUMENTO_VALORES.rubrica, INSTRUMENTO_VALORES.matrizCon],
+  matriz: [INSTRUMENTO_VALORES.matrizSin, INSTRUMENTO_VALORES.matrizCon],
+  lista: [INSTRUMENTO_VALORES.lista],
+  escala: [INSTRUMENTO_VALORES.escala, INSTRUMENTO_VALORES.escalaAdmin],
+}
+
+const TABLA_CABECERA: Record<Exclude<ProcesoActivable, 'consignas'>, { tabla: string; nombre: string }> = {
+  rubrica: { tabla: 'dpl_rubrica', nombre: 'Rúbrica' },
+  matriz: { tabla: 'dpl_matriz', nombre: 'Matriz' },
+  lista: { tabla: 'dpl_listacotejo', nombre: 'Lista de cotejo' },
+  escala: { tabla: 'dpl_escalavaloracion', nombre: 'Escala de valoración' },
+}
+
+/**
+ * ACTIVAR a process for a course (only once). Consignas: one consigna per
+ * evaluation element. Instruments: one record per element whose consigna chose
+ * that instrument. Returns how many rows were created.
+ */
+export async function activarProceso(ctx: CursoContexto, proceso: ProcesoActivable, usuario: string): Promise<number> {
+  const ahora = new Date().toISOString()
+  let creados = 0
+  if (proceso === 'consignas') {
+    const faltan = ctx.elementos.filter(e => !e.consigna)
+    if (faltan.length) {
+      const { error } = await supabase.from('dpl_consigna').insert(
+        faltan.map(e => ({
+          dpl_sesionid: e.sesionId,
+          dpl_idconsignatext: [ctx.idCursoText, e.idSesionText].filter(Boolean).join('-') || null,
+          dpl_activado: true,
+          dpl_usuarioregistro: usuario,
+          dpl_fecharegistro: ahora,
+        })),
+      )
+      fail(error, 'No se pudieron crear las consignas.')
+      creados = faltan.length
+    }
+  } else {
+    const valores = INSTRUMENTOS_DE[proceso]
+    const elegidos = ctx.elementos.filter(e => valores.includes((e.consigna?.dpl_instrumento ?? '').toLowerCase()))
+    const { tabla, nombre } = TABLA_CABECERA[proceso]
+    if (elegidos.length) {
+      const { data: existentes, error: e1 } = await supabase.from(tabla).select('dpl_sesionid').in('dpl_sesionid', elegidos.map(e => e.sesionId))
+      fail(e1, 'No se pudo revisar lo ya creado.')
+      const ya = new Set((existentes ?? []).map(r => r.dpl_sesionid as string))
+      const faltan = elegidos.filter(e => !ya.has(e.sesionId))
+      if (faltan.length) {
+        const { error } = await supabase.from(tabla).insert(
+          faltan.map(e => ({ dpl_sesionid: e.sesionId, dpl_nombre: `${nombre} — ${e.nombre}`, dpl_activado: true, dpl_usuarioregistro: usuario, dpl_fecharegistro: ahora })),
+        )
+        fail(error, `No se pudo crear ${nombre.toLowerCase()}.`)
+        creados = faltan.length
+      }
+    }
+  }
+  const marcas = Object.fromEntries(COLUMNA_ACTIVADO[proceso].map(c => [c, true]))
+  const { error } = await supabase.from('dpl_curso').update(marcas).eq('dpl_cursoid', ctx.id)
+  fail(error, 'No se pudo marcar el proceso como activado.')
+  return creados
+}
