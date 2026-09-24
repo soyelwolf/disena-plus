@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Navigate, useNavigate, useParams } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import TextoEnriquecido from '../components/TextoEnriquecido'
 import { estaVacio, longitud } from '../shared/textoRico'
@@ -8,9 +8,8 @@ import { useAuth } from '../shared/AuthContext'
 import {
   LIMITES,
   NIVELES,
-  actualizarCriterio,
   crearCriterios,
-  getCriterio,
+  guardarRubricaCompleta,
   getCriteriosDeElemento,
   PUNTAJE_OBJETIVO,
   totalEstandar,
@@ -71,44 +70,60 @@ function aCampos(f: Fila): CriterioCampos {
   }
 }
 
-export default function CriterioForm() {
+export default function CriterioForm({ completa = false }: { completa?: boolean }) {
   const { cursoId, sesionId, criterioId } = useParams<{ cursoId: string; sesionId: string; criterioId?: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToast()
   const { user } = useAuth()
   const { ctx, proceso, error, loading, recargar } = useContenidoAcademico(cursoId)
   const { puede } = usePuedeEditar(proceso, 'rubricas')
-  const editando = !!criterioId
+  // Editing always shows the whole rubric: every criterion of the element at once.
+  const editando = completa || !!criterioId
+  const foco = criterioId ?? (location.state as { foco?: string } | null)?.foco ?? null
 
   const [filas, setFilas] = useState<Fila[]>([{ ...VACIA }])
-  const [cargandoCriterio, setCargandoCriterio] = useState(editando)
+  // Id of each row when editing (null = criterion added on this screen).
+  const [ids, setIds] = useState<Array<string | null>>([null])
+  const [originales, setOriginales] = useState<string[]>([])
+  const [cargandoCriterio, setCargandoCriterio] = useState(true)
   const [intento, setIntento] = useState(false)
   const [sucio, setSucio] = useState(false)
   const [confirmarCancelar, setConfirmarCancelar] = useState(false)
   const [guardando, setGuardando] = useState(false)
   // Criteria the element already has: new ones continue their numbering.
   const [existentes, setExistentes] = useState<CriterioRow[]>([])
-  useEffect(() => {
-    if (sesionId) getCriteriosDeElemento(sesionId).then(setExistentes).catch(() => setExistentes([]))
-  }, [sesionId])
 
   useEffect(() => {
-    document.title = `${editando ? 'Editar' : 'Agregar'} criterio — Diseña+`
-    if (!criterioId) return
-    getCriterio(criterioId)
-      .then(c => {
-        if (c) {
-          const f = { ...VACIA }
-          for (const k of Object.keys(VACIA) as Array<keyof CriterioCampos>) {
-            const v = c[k]
-            f[k] = v === null || v === undefined ? '' : String(v)
-          }
-          setFilas([f])
-        }
+    document.title = `${editando ? 'Editar rúbrica' : 'Agregar criterio'} — Diseña+`
+    if (!sesionId) return
+    getCriteriosDeElemento(sesionId)
+      .then(lista => {
+        setExistentes(lista)
+        if (!editando || lista.length === 0) return
+        setFilas(
+          lista.map(c => {
+            const f = { ...VACIA }
+            for (const k of Object.keys(VACIA) as Array<keyof CriterioCampos>) {
+              const v = c[k]
+              f[k] = v === null || v === undefined ? '' : String(v)
+            }
+            return f
+          }),
+        )
+        setIds(lista.map(c => c.dpl_rubricacriterioid))
+        setOriginales(lista.map(c => c.dpl_rubricacriterioid))
       })
-      .catch(err => toast(err instanceof Error ? err.message : 'No se pudo cargar el criterio.', 'error'))
+      .catch(err => toast(err instanceof Error ? err.message : 'No se pudo cargar la rúbrica.', 'error'))
       .finally(() => setCargandoCriterio(false))
-  }, [criterioId, editando, toast])
+  }, [sesionId, editando, toast])
+
+  // Coming from "⋮ → Editar" of one criterion: scroll to it.
+  useEffect(() => {
+    if (cargandoCriterio || !foco) return
+    const t = setTimeout(() => document.getElementById(`fila-${foco}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 150)
+    return () => clearTimeout(t)
+  }, [cargandoCriterio, foco])
 
   if (loading || cargandoCriterio) return <Cargando texto="Cargando" />
   if (error || !ctx || !proceso) return <ErrorPanel mensaje={error ?? 'Curso no encontrado.'} onRetry={recargar} />
@@ -119,10 +134,21 @@ export default function CriterioForm() {
   const volver = `/cursos/${ctx.id}/rubricas`
   const errores = filas.map(erroresFila)
   const hayErrores = errores.some(e => Object.keys(e).length > 0)
+  const eliminados = originales.filter(id => !ids.includes(id))
 
   const setCampo = (i: number, key: keyof CriterioCampos, v: string) => {
     setSucio(true)
     setFilas(prev => prev.map((f, j) => (j === i ? { ...f, [key]: v } : f)))
+  }
+  const agregarFila = () => {
+    setSucio(true)
+    setFilas(prev => [...prev, { ...VACIA }])
+    setIds(prev => [...prev, null])
+  }
+  const quitarFila = (i: number) => {
+    setSucio(true)
+    setFilas(prev => prev.filter((_, j) => j !== i))
+    setIds(prev => prev.filter((_, j) => j !== i))
   }
 
   const guardar = async () => {
@@ -130,9 +156,9 @@ export default function CriterioForm() {
     if (hayErrores || !user) return
     setGuardando(true)
     try {
-      if (editando && criterioId) {
-        await actualizarCriterio(criterioId, aCampos(filas[0]))
-        navigate(volver, { state: { toast: 'Se guardó información con éxito', abrir: criterioId } })
+      if (editando) {
+        await guardarRubricaCompleta(elemento, filas.map((f, i) => ({ id: ids[i], campos: aCampos(f) })), eliminados, user.correo)
+        navigate(volver, { state: { toast: 'Se guardó la rúbrica con éxito', abrir: foco ?? undefined } })
       } else {
         const primero = await crearCriterios(elemento, filas.map(aCampos), user.correo)
         navigate(volver, { state: { toast: filas.length > 1 ? 'Se agregaron los criterios con éxito' : 'Se agregó el criterio con éxito', abrir: primero } })
@@ -143,6 +169,7 @@ export default function CriterioForm() {
     }
   }
 
+  const titulo = editando ? 'Editar rúbrica' : 'Agregar criterio'
   return (
     <div className="page" style={{ paddingBottom: 90 }}>
       <Breadcrumbs
@@ -150,45 +177,48 @@ export default function CriterioForm() {
           { label: 'Cursos', to: '/cursos' },
           { label: ctx.nombre, to: `/cursos/${ctx.id}` },
           { label: 'Rúbrica', to: volver },
-          { label: editando ? 'Editar criterio' : 'Agregar criterio' },
+          { label: titulo },
         ]}
       />
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>{editando ? 'Editar criterio' : 'Agregar criterio'}</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700 }}>{titulo}</h1>
       <CursoHeader titulo={elemento.nombre} curso={ctx.nombre} tipoEnsenanza={ctx.tipoEnsenanza} programas={ctx.programas} />
 
-      {!editando && existentes.length > 0 && (
-        <ResumenExistentes existentes={existentes} nuevos={filas} />
+      {editando ? (
+        <ResumenRubrica filas={filas} eliminados={eliminados.length} />
+      ) : (
+        existentes.length > 0 && <ResumenExistentes existentes={existentes} nuevos={filas} />
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {filas.map((f, i) => (
-          <FilaCriterio
-            key={i}
-            numero={editando ? Number(existentes.find(c => c.dpl_rubricacriterioid === criterioId)?.dpl_orden ?? i + 1) : existentes.length + i + 1}
-            fila={f}
-            errores={intento ? errores[i] : {}}
-            onChange={(k, v) => setCampo(i, k, v)}
-            onEliminar={filas.length > 1 ? () => setFilas(prev => prev.filter((_, j) => j !== i)) : undefined}
-          />
+          <div key={ids[i] ?? `nueva-${i}`} id={ids[i] ? `fila-${ids[i]}` : undefined} style={{ scrollMarginTop: 16 }}>
+            <FilaCriterio
+              numero={editando ? i + 1 : existentes.length + i + 1}
+              fila={f}
+              errores={intento ? errores[i] : {}}
+              onChange={(k, v) => setCampo(i, k, v)}
+              onEliminar={filas.length > 1 ? () => quitarFila(i) : undefined}
+            />
+          </div>
         ))}
       </div>
 
-      {!editando && (
-        <button className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 14, padding: '8px 10px' }} onClick={() => setFilas(prev => [...prev, { ...VACIA }])}>
-          <Icon name="plus" size={18} strokeWidth={2} />Agregar otro criterio
-        </button>
-      )}
+      <button className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 14, padding: '8px 10px' }} onClick={agregarFila}>
+        <Icon name="plus" size={18} strokeWidth={2} />Agregar otro criterio
+      </button>
 
       <div className="form-footer">
         <button className="btn btn-outline" style={{ height: 44, padding: '0 24px' }} onClick={() => (sucio ? setConfirmarCancelar(true) : navigate(volver))}>
           Cancelar
         </button>
-        <button className="btn btn-primary" style={{ height: 44, padding: '0 28px' }} onClick={guardar}>Guardar</button>
+        <button className="btn btn-primary" style={{ height: 44, padding: '0 28px' }} onClick={guardar}>
+          {editando ? 'Guardar rúbrica' : 'Guardar'}
+        </button>
       </div>
 
       <Modal
         open={confirmarCancelar}
-        title={editando ? '¿Cancelar edición del criterio?' : '¿Cancelar creación de criterios?'}
+        title={editando ? '¿Cancelar edición de la rúbrica?' : '¿Cancelar creación de criterios?'}
         onClose={() => setConfirmarCancelar(false)}
         actions={
           <>
@@ -196,8 +226,34 @@ export default function CriterioForm() {
             <button className="btn btn-primary" onClick={() => navigate(volver)}>Sí, cancelar</button>
           </>
         }
-      />
+      >
+        {editando ? 'No se guardará ningún cambio de la rúbrica.' : undefined}
+      </Modal>
       <SavingOverlay show={guardando} />
+    </div>
+  )
+}
+
+/** Live total of the whole rubric being edited vs the 20 points. */
+function ResumenRubrica({ filas, eliminados }: { filas: Fila[]; eliminados: number }) {
+  const total = filas.reduce((s, f) => s + (Number(f.dpl_puntajeestandar) || 0), 0)
+  const falta = PUNTAJE_OBJETIVO - total
+  return (
+    <div className="panel" style={{ padding: '14px 18px', border: '1px solid var(--color-border)', position: 'sticky', top: 0, zIndex: 5 }}>
+      <div className="row-between" style={{ flexWrap: 'wrap', gap: 10 }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>
+          {filas.length} {filas.length === 1 ? 'criterio' : 'criterios'}
+          {eliminados > 0 && (
+            <span style={{ fontWeight: 400, color: 'var(--color-danger)' }}> · {eliminados} se {eliminados === 1 ? 'quitará' : 'quitarán'} al guardar</span>
+          )}
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+          Estándar esperado: <span className="chip chip-pt">{total} de {PUNTAJE_OBJETIVO} pt</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: falta === 0 ? 'var(--color-success)' : falta < 0 ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+            {falta === 0 ? '¡Completo!' : falta > 0 ? `Faltan ${falta} pt` : `Te pasaste por ${-falta} pt`}
+          </span>
+        </span>
+      </div>
     </div>
   )
 }

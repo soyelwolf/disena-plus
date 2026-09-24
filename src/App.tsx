@@ -29,6 +29,7 @@ export default function App() {
           <Route path="/cursos/:cursoId/consignas" element={<ProtectedRoute><ConsignasPage /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/rubricas" element={<ProtectedRoute><RubricasPage /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/rubricas/:sesionId/criterio" element={<ProtectedRoute><CriterioForm /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/rubricas/:sesionId/editar" element={<ProtectedRoute><CriterioForm completa /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/rubricas/:sesionId/criterio/:criterioId" element={<ProtectedRoute><CriterioForm /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/admin" element={<ProtectedRoute><PanelAdmin /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/:seccion" element={<ProtectedRoute><SeccionIndice /></ProtectedRoute>} />

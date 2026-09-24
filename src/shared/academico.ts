@@ -964,3 +964,33 @@ export async function activarProceso(ctx: CursoContexto, proceso: ProcesoActivab
   fail(error, 'No se pudo marcar el proceso como activado.')
   return creados
 }
+
+/**
+ * Save a whole rubric edited at once: removes the criteria taken out, updates
+ * the ones kept, inserts the new ones, and numbers them 1..n in screen order.
+ */
+export async function guardarRubricaCompleta(
+  elemento: Elemento,
+  filas: Array<{ id: string | null; campos: CriterioCampos }>,
+  eliminados: string[],
+  usuario: string,
+): Promise<void> {
+  if (eliminados.length) {
+    const { error } = await supabase.from('dpl_rubricacriterio').delete().in('dpl_rubricacriterioid', eliminados)
+    fail(error, 'No se pudieron quitar los criterios.')
+  }
+  const rubricaId = await asegurarRubrica(elemento, usuario)
+  const ahora = new Date().toISOString()
+  for (const [i, f] of filas.entries()) {
+    if (f.id) {
+      const { error } = await supabase
+        .from('dpl_rubricacriterio')
+        .update({ ...f.campos, dpl_orden: i + 1, modifiedon: ahora })
+        .eq('dpl_rubricacriterioid', f.id)
+      fail(error, `No se pudo guardar el criterio N°${i + 1}.`)
+    } else {
+      const { error } = await supabase.from('dpl_rubricacriterio').insert({ ...f.campos, dpl_rubricaid: rubricaId, dpl_orden: i + 1 })
+      fail(error, `No se pudo crear el criterio N°${i + 1}.`)
+    }
+  }
+}

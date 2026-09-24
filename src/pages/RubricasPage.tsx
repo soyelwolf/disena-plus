@@ -314,7 +314,7 @@ export default function RubricasPage() {
                   numComentarios={comentarios.filter(k => k.entidadId === c.dpl_rubricacriterioid).length}
                   puedeComentar={puedeComentar}
                   onComentarios={() => setComentariosDe({ id: c.dpl_rubricacriterioid, titulo: `Comentarios: Criterio N°${c.dpl_orden ?? ''}` })}
-                  onEditar={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/criterio/${c.dpl_rubricacriterioid}`)}
+                  onEditar={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/editar`, { state: { foco: c.dpl_rubricacriterioid } })}
                   onEliminar={() => setEliminar(c)}
                 />
               ))}
@@ -322,10 +322,17 @@ export default function RubricasPage() {
           )}
 
           {puede && (
-            <AgregarCriterio
-              onManual={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/criterio`)}
-              onIA={() => setIaPara(r)}
-            />
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <AgregarCriterio
+                onManual={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/criterio`)}
+                onIA={() => setIaPara(r)}
+              />
+              {r.criterios.length > 0 && (
+                <button className="btn btn-outline" style={{ height: 38 }} onClick={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/editar`)}>
+                  <Icon name="pencil" size={16} />Editar rúbrica completa
+                </button>
+              )}
+            </div>
           )}
 
           {intentoFinalizar && problemas[i] === 'sin_criterios' && (
