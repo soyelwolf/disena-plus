@@ -12,7 +12,7 @@ import {
   type EventoProceso,
   type ProcesoCurso,
 } from '../shared/academico'
-import Icon from './Icon'
+import Icon, { type IconName } from './Icon'
 import { Drawer, useToast } from './ui'
 
 interface Props {
@@ -155,29 +155,55 @@ export default function Aprobaciones({ open, onClose, cursoId, proceso, rol, onC
 
       {proceso.eventos.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)' }}>Historial</span>
-          {[...proceso.eventos].reverse().map(e => (
-            <div key={e.id} style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 8, borderBottom: '1px solid var(--color-border)' }}>
-              <span>
-                <b>{ACCION_LABEL[e.accion]}</b>
-                {e.instrumento ? ` · ${e.instrumento}` : ''} — {e.usuario}
-              </span>
-              <span style={{ color: 'var(--color-text-muted)' }}>{fecha(e.fecha)} {hora(e.fecha)}</span>
-              {e.comentario && <span style={{ fontStyle: 'italic' }}>“{e.comentario}”</span>}
-            </div>
-          ))}
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-muted)' }}>Historial · del más reciente al más antiguo</span>
+          <ol className="historial">
+            {[...proceso.eventos].reverse().map(e => {
+              const d = describirEvento(e)
+              return (
+                <li key={e.id} className={`historial-item ${d.tono}`}>
+                  <span className="historial-icono"><Icon name={d.icono} size={15} /></span>
+                  <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+                    <b>{d.titulo}</b>
+                    {d.detalle && <span style={{ color: '#3d434a' }}>{d.detalle}</span>}
+                    <span style={{ color: 'var(--color-text-muted)' }}>
+                      {e.usuario ? `${e.usuario} · ` : ''}{fecha(e.fecha)} {hora(e.fecha)}
+                    </span>
+                    {e.comentario && <span style={{ fontStyle: 'italic' }}>“{e.comentario}”</span>}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
         </div>
       )}
     </Drawer>
   )
 }
 
-const ACCION_LABEL: Record<EventoProceso['accion'], string> = {
-  finalizado: 'Edición finalizada',
-  enviado: 'Enviado a revisión',
-  aprobado: 'Aprobado',
-  devuelto: 'Devuelto con comentarios',
-  habilitado: 'Edición habilitada',
+/**
+ * History wording: "finalizado" is one part closed by the teacher; "enviado" is
+ * recorded automatically once every part is finalized (the notice to the approvers).
+ */
+function describirEvento(e: EventoProceso): { titulo: string; detalle?: string; icono: IconName; tono: string } {
+  const parte = e.instrumento ? PARTE_LABEL[e.instrumento] ?? e.instrumento : ''
+  const quien = e.rol === 'dda' ? 'DDA' : 'Monitor EA'
+  switch (e.accion) {
+    case 'finalizado':
+      return { titulo: `${parte || 'Una parte'}: edición finalizada`, detalle: 'El docente terminó esta parte. Aún puede seguir editando.', icono: 'pencil', tono: 'neutro' }
+    case 'enviado':
+      return { titulo: 'Enviado a revisión', detalle: 'Todas las partes quedaron finalizadas: se avisó al Monitor EA y DDA que pueden revisar.', icono: 'mail', tono: 'info' }
+    case 'aprobado':
+      return {
+        titulo: `Aprobado por ${quien}`,
+        detalle: e.rol === 'dda' ? 'Con los dos checks, el proceso quedó cerrado.' : 'Falta la aprobación de DDA.',
+        icono: 'checkCircle',
+        tono: 'ok',
+      }
+    case 'devuelto':
+      return { titulo: `Devuelto al docente por ${quien}`, detalle: 'Se habilitó la edición para hacer los cambios.', icono: 'alert', tono: 'alerta' }
+    case 'habilitado':
+      return { titulo: 'Edición habilitada por Monitor EA', detalle: 'La aprobación empieza de nuevo.', icono: 'lock', tono: 'alerta' }
+  }
 }
 
 const PARTE_LABEL: Record<string, string> = { consignas: 'Consignas', rubricas: 'Rúbricas', matriz: 'Matriz', lista: 'Lista de cotejo', escala: 'Escala de valoración' }
