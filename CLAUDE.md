@@ -73,9 +73,9 @@ importacion/              datos personales para importar (NO se sube a Git)
 ## Base de datos (Supabase)
 
 Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.sql` →
-`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` (todos re-ejecutables).
+`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` → `schema-unidades-sesiones.sql` (todos re-ejecutables).
 
-- Catálogo: `dpl_curso`, `dpl_unidad` (logro específico), `dpl_sesion` (= elemento de evaluación),
+- Catálogo: `dpl_curso`, `dpl_unidad` (logro específico), `dpl_sesion` (todas las sesiones del sílabo; las que tienen `dpl_elemento` son elementos de evaluación),
   `dpl_programa`, `dpl_cursoprograma`, `dpl_competencia`, `dpl_cursoprogramacompetencia`.
 - Contenido: `dpl_consigna` (instrumento + 4 campos), `dpl_rubrica` (1 por elemento),
   `dpl_rubricacriterio`, `dpl_rubricacriteriocompetencia` (competencia por criterio **y programa**),
