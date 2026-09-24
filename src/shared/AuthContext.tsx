@@ -111,11 +111,12 @@ export function rolesLabel(roles: UserRole[]): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(leerSesion)
 
-  // A session started before the users table existed has no usuarioId: refresh
-  // it from dpl_usuario so name, roles and assigned courses are the real ones.
+  // On every page load, refresh name and roles from dpl_usuario: a role changed
+  // in the Centro de datos applies without signing out.
+  const correoSesion = user?.correo
   useEffect(() => {
-    if (!user || user.usuarioId) return
-    buscarUsuario(user.correo)
+    if (!correoSesion) return
+    buscarUsuario(correoSesion)
       .then(({ tabla, usuario }) => {
         if (!tabla) return
         if (!usuario) {
@@ -125,10 +126,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         const next: SessionUser = { nombre: usuario.nombre, correo: usuario.correo, roles: normalizarRoles(usuario.roles), usuarioId: usuario.id }
         guardarSesion(next)
-        setUser(next)
+        setUser(prev => (prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
       })
       .catch(() => {})
-  }, [user])
+  }, [correoSesion])
 
   const value = useMemo<AuthContextValue>(() => {
     const permisos = new Set((user?.roles ?? []).flatMap(r => PERMISOS[r]))
