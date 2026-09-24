@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
+import ComparadorIA, { type SeccionComparada } from '../components/ComparadorIA'
 import { MensajeFinalizado } from '../components/Aprobaciones'
 import { BotonComentarios, CAMPO_GENERAL, PanelComentarios, ZonaComentable, datosItem, type FiltroComentarios } from '../components/Comentarios'
 import { VistaRica } from '../components/TextoEnriquecido'
@@ -14,6 +15,8 @@ import {
   finalizarInstrumento,
   getActivacion,
   getComentarios,
+  getPropuestasIA,
+  type PropuestaIA,
   getRubricasCurso,
   habilitarEdicion,
   instrumentosRequeridos,
@@ -82,6 +85,14 @@ export default function RubricasPage() {
   }, [cursoId])
   useEffect(cargarComentarios, [cargarComentarios])
 
+  // Initial IA proposal of each rubric (BACKUP list), to compare with the final version.
+  const [propuestas, setPropuestas] = useState<Map<string, PropuestaIA>>(new Map())
+  const [compararDe, setCompararDe] = useState<RubricaElemento | null>(null)
+  const sesionesKey = datos?.elementos.map(r => r.elemento.sesionId).join(',') ?? ''
+  useEffect(() => {
+    if (sesionesKey) getPropuestasIA('rubricas', sesionesKey.split(',')).then(setPropuestas).catch(() => setPropuestas(new Map()))
+  }, [sesionesKey])
+
   useEffect(() => {
     if (ctx && !programa) setPrograma(ctx.programas[0]?.id ?? '')
   }, [ctx, programa])
@@ -123,7 +134,7 @@ export default function RubricasPage() {
   const problemas = datos.elementos.map(problemaElemento)
   const todoCompleto = datos.elementos.length > 0 && problemas.every(p => p === null)
   const esMonitor = rol.monitor
-  const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado === 'revision_dda' || proceso.estado === 'aprobado')
+  const puedeHabilitar = esMonitor && proceso.disponible && proceso.estado === 'aprobado'
   // Everything depends on the person's role in THIS course (LISTADO_CURSOS_PARA_IA):
   // Monitor EA / DDA open and resolve comments; the teaching team replies; all can read.
   const puedeComentar = (rol.monitor || rol.dda) && proceso.estado !== 'aprobado'
@@ -296,6 +307,11 @@ export default function RubricasPage() {
           <div className="row-between">
             <h2 style={{ fontSize: 18, fontWeight: 700 }}>{r.elemento.nombre}</h2>
             <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+              {propuestas.has(r.elemento.sesionId) && (
+                <button className="btn btn-outline btn-sm" style={{ marginRight: 8 }} onClick={() => setCompararDe(r)}>
+                  <Icon name="sparkles" size={14} />Comparar con propuesta IA
+                </button>
+              )}
               <Icon name="clipboard" size={16} />Total:
               <span className="chip chip-pt">{totalEstandar(r.criterios)} pt</span>
             </span>
@@ -405,7 +421,7 @@ export default function RubricasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        Puedes seguir editando mientras revisan. La edición se bloqueará solo cuando el Monitor EA apruebe.
+        Puedes seguir editando mientras revisan. Todo se congela solo cuando aprueben el Monitor EA y DDA.
       </Modal>
       <Modal
         open={modal === 'finalizado'}
@@ -477,6 +493,39 @@ export default function RubricasPage() {
         onIrItem={irItem}
       />
       <SavingOverlay show={trabajando} />
+      {compararDe && propuestas.get(compararDe.elemento.sesionId) && (() => {
+        const p = propuestas.get(compararDe.elemento.sesionId)!
+        // Criteria are matched by their number (N°).
+        const numeros = [...new Set([...p.filas.map(f => Number(f.dpl_orden)), ...compararDe.criterios.map(c => Number(c.dpl_orden))])].sort((a, b) => a - b)
+        const secciones: SeccionComparada[] = numeros.map(n => {
+          const ia = (p.filas.find(f => Number(f.dpl_orden) === n) ?? {}) as Record<string, unknown>
+          const fin = (compararDe.criterios.find(c => Number(c.dpl_orden) === n) ?? {}) as unknown as Record<string, unknown>
+          const enIA = Object.keys(ia).length > 0
+          const enFinal = Object.keys(fin).length > 0
+          const txt = (o: Record<string, unknown>, k: string) => (o[k] === null || o[k] === undefined ? '' : String(o[k]))
+          return {
+            titulo: `Criterio N°${n}${txt(fin, 'dpl_criterio') || txt(ia, 'dpl_criterio') ? ` · ${txt(fin, 'dpl_criterio') || txt(ia, 'dpl_criterio')}` : ''}`,
+            nota: !enIA ? 'Criterio agregado por el docente (no estaba en la propuesta IA).' : !enFinal ? 'Criterio de la propuesta IA que el docente quitó.' : undefined,
+            campos: [
+              { label: 'Nombre del criterio', ia: txt(ia, 'dpl_criterio'), final: txt(fin, 'dpl_criterio') },
+              { label: 'Descripción del criterio', ia: txt(ia, 'dpl_definicioncriterio'), final: txt(fin, 'dpl_definicioncriterio') },
+              ...NIVELES.flatMap(l => [
+                { label: l.label, ia: txt(ia, l.texto), final: txt(fin, l.texto) },
+                { label: `Puntaje · ${l.label}`, ia: txt(ia, l.puntaje), final: txt(fin, l.puntaje) },
+              ]),
+            ],
+          }
+        })
+        return (
+          <ComparadorIA
+            open
+            onClose={() => setCompararDe(null)}
+            titulo={`Propuesta IA vs versión final · ${compararDe.elemento.nombre}`}
+            detalle={`Propuesta IA del ${new Date(p.fecha).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}${p.modelo ? ` · ${p.modelo}` : ''}${p.herramienta ? ` (${p.herramienta})` : ''}`}
+            secciones={secciones}
+          />
+        )
+      })()}
     </div>
   )
 }

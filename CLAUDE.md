@@ -73,7 +73,7 @@ importacion/              datos personales para importar (NO se sube a Git)
 ## Base de datos (Supabase)
 
 Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.sql` →
-`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` → `schema-unidades-sesiones.sql` → `schema-catalogo-elementos.sql` → `schema-columnas-sharepoint.sql` → `schema-comentarios.sql` (todos re-ejecutables).
+`schema-competencias.sql` → `schema-storage.sql` → `schema-flujo.sql` → `schema-unidades-sesiones.sql` → `schema-catalogo-elementos.sql` → `schema-columnas-sharepoint.sql` → `schema-comentarios.sql` → `schema-backups.sql` (todos re-ejecutables).
 
 - Catálogo: `dpl_curso`, `dpl_unidad` (logro específico; Elemento_Catalogo → `dpl_catalogoelemento` = CATALOGO_ELEMENTOS), `dpl_sesion` (todas las sesiones del sílabo; las que tienen `dpl_elemento` son elementos de evaluación),
   `dpl_programa`, `dpl_cursoprograma`, `dpl_competencia`, `dpl_cursoprogramacompetencia`.
@@ -98,10 +98,16 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 - Rúbrica: **una sola por elemento**, idéntica en todos los programas; por programa solo cambian
   las competencias marcadas. En cada elemento la suma de "Estándar esperado" = **20**. Las alertas
   aparecen solo tras pulsar "Finalizar edición general".
-- Flujo: "Finalizar edición general" **solo avisa** a Monitor EA y DDA que pueden revisar; se
-  sigue editando. Las pantallas se bloquean **solo con un check de aprobación**: desde que aprueba
-  **Monitor EA** (revisión DDA) y al aprobar **DDA** (cerrado). Pueden devolver con comentarios.
-  Solo **Monitor EA** puede "Habilitar edición"; la aprobación vuelve a empezar.
+- Flujo: "Finalizar edición general" **solo avisa** a Monitor EA y DDA (cuando todas las partes
+  del proceso están finalizadas; hoy sin correo, solo cambia el estado). Se sigue editando hasta
+  que estén **los dos checks** (Monitor EA y DDA): recién ahí se congela todo. Pueden devolver
+  con comentarios. Solo **Monitor EA** puede "Habilitar edición"; la aprobación vuelve a empezar.
+- BACKUP IA (`schema-backups.sql`): `dpl_consigna_backup`, `dpl_rubricacriterio_backup`,
+  `dpl_matrizpregunta_backup`, `dpl_listacotejoindicador_backup`, `dpl_escalaindicador_backup`
+  (todas las columnas de su lista + columnas IA + contexto + versión). Al generar con IA, llamar
+  `guardarBackupIA` justo después de escribir la propuesta. `ComparadorIA` muestra propuesta IA
+  vs versión final (Consignas y Rúbricas). MATRIZ_SN_RUBRICA = toda Matriz (con y sin rúbrica).
+  Escala usa los niveles de SharePoint: Consolidado, En desarrollo, En inicio, No evidenciado.
 - Comentarios por ítem (`dpl_comentario`: entidad + campo, hilo con `dpl_padreid`, cita
   resaltada, resuelto): Monitor EA/DDA abren comentarios en cualquier momento (no bloquean);
   docente y asesor responden; solo el autor marca "resuelto". Ícono: + / 1 / 2 (lados con

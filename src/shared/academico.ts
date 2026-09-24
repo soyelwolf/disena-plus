@@ -1150,3 +1150,118 @@ export async function guardarRubricaCompleta(
   }
   return ids
 }
+
+// ── IA BACKUP (initial proposal kept untouched to compare with the final version) ──
+
+export type InstrumentoBackup = 'consignas' | 'rubricas' | 'matriz' | 'lista' | 'escala'
+
+const BACKUP: Record<InstrumentoBackup, { items: string; backup: string; cabecera: { tabla: string; pk: string } | null }> = {
+  consignas: { items: 'dpl_consigna', backup: 'dpl_consigna_backup', cabecera: null },
+  rubricas: { items: 'dpl_rubricacriterio', backup: 'dpl_rubricacriterio_backup', cabecera: { tabla: 'dpl_rubrica', pk: 'dpl_rubricaid' } },
+  matriz: { items: 'dpl_matrizpregunta', backup: 'dpl_matrizpregunta_backup', cabecera: { tabla: 'dpl_matriz', pk: 'dpl_matrizid' } },
+  lista: { items: 'dpl_listacotejoindicador', backup: 'dpl_listacotejoindicador_backup', cabecera: { tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid' } },
+  escala: { items: 'dpl_escalaindicador', backup: 'dpl_escalaindicador_backup', cabecera: { tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid' } },
+}
+
+const IA_COLUMNAS = ['dpl_json', 'dpl_inputs', 'dpl_resultadogpt', 'dpl_modeloia', 'dpl_herramientaia', 'dpl_fechaia', 'dpl_usuarioia'] as const
+
+export interface DatosIA {
+  json?: string | null
+  inputs?: string | null
+  resultado?: string | null
+  modelo?: string | null
+  herramienta?: string | null
+  usuario?: string | null
+}
+
+/**
+ * Copy what the IA just wrote to an element into its BACKUP list, untouched.
+ * Call it right after the IA fills the instrument (before the teacher edits).
+ * Returns the version number of the copy (1, 2, 3… per generation).
+ */
+export async function guardarBackupIA(ctx: CursoContexto, elemento: Elemento, instrumento: InstrumentoBackup, ia: DatosIA = {}): Promise<number> {
+  const cfg = BACKUP[instrumento]
+  let cabecera: Record<string, unknown> | null = null
+  let filas: Array<Record<string, unknown>>
+  if (cfg.cabecera) {
+    const { data: cab, error: e1 } = await supabase.from(cfg.cabecera.tabla).select('*').eq('dpl_sesionid', elemento.sesionId).maybeSingle()
+    fail(e1, 'No se pudo leer la propuesta para el backup.')
+    if (!cab) return 0
+    cabecera = cab
+    const { data, error } = await supabase.from(cfg.items).select('*').eq(cfg.cabecera.pk, cab[cfg.cabecera.pk] as string).order('dpl_orden', { ascending: true })
+    fail(error, 'No se pudo leer la propuesta para el backup.')
+    filas = data ?? []
+  } else {
+    const { data, error } = await supabase.from(cfg.items).select('*').eq('dpl_sesionid', elemento.sesionId)
+    fail(error, 'No se pudo leer la propuesta para el backup.')
+    filas = data ?? []
+    cabecera = filas[0] ?? null
+  }
+  if (!filas.length) return 0
+
+  const { data: previa } = await supabase
+    .from(cfg.backup)
+    .select('dpl_version')
+    .eq('dpl_sesionbackupid', elemento.sesionId)
+    .order('dpl_version', { ascending: false })
+    .limit(1)
+  const version = ((previa?.[0]?.dpl_version as number | undefined) ?? 0) + 1
+  const ahora = new Date().toISOString()
+  const deIA: Record<string, unknown> = {}
+  for (const c of IA_COLUMNAS) deIA[c] = cabecera?.[c] ?? null
+  if (ia.json !== undefined) deIA.dpl_json = ia.json
+  if (ia.inputs !== undefined) deIA.dpl_inputs = ia.inputs
+  if (ia.resultado !== undefined) deIA.dpl_resultadogpt = ia.resultado
+  if (ia.modelo !== undefined) deIA.dpl_modeloia = ia.modelo
+  if (ia.herramienta !== undefined) deIA.dpl_herramientaia = ia.herramienta
+  if (ia.usuario !== undefined) deIA.dpl_usuarioia = ia.usuario
+  deIA.dpl_fechaia = deIA.dpl_fechaia ?? ahora
+
+  const { error } = await supabase.from(cfg.backup).insert(
+    filas.map(f => ({
+      ...f,
+      ...deIA,
+      dpl_idcursotext: ctx.idCursoText,
+      dpl_nombrecurso: ctx.nombre,
+      dpl_elemento: elemento.nombre,
+      dpl_sesionbackupid: elemento.sesionId,
+      dpl_version: version,
+      dpl_fechabackup: ahora,
+      dpl_origen: 'ia',
+    })),
+  )
+  if (error && /does not exist|schema cache/i.test(error.message)) throw new Error('Falta ejecutar supabase/schema-backups.sql en Supabase.')
+  fail(error, 'No se pudo guardar el backup de la propuesta IA.')
+  return version
+}
+
+export interface PropuestaIA {
+  version: number
+  fecha: string
+  modelo: string | null
+  herramienta: string | null
+  filas: Array<Record<string, unknown>>
+}
+
+/** First IA proposal (version 1) of each element, keyed by session id. */
+export async function getPropuestasIA(instrumento: InstrumentoBackup, sesionIds: string[]): Promise<Map<string, PropuestaIA>> {
+  const res = new Map<string, PropuestaIA>()
+  if (!sesionIds.length) return res
+  const { data, error } = await supabase
+    .from(BACKUP[instrumento].backup)
+    .select('*')
+    .in('dpl_sesionbackupid', sesionIds)
+    .order('dpl_version', { ascending: true })
+  if (error) return res // backup lists not created yet: nothing to compare
+  for (const f of data ?? []) {
+    const id = f.dpl_sesionbackupid as string
+    const v = f.dpl_version as number
+    const actual = res.get(id)
+    // The initial proposal is the first version; later generations don't replace it.
+    if (actual && actual.version !== v) continue
+    if (!actual) res.set(id, { version: v, fecha: f.dpl_fechabackup, modelo: f.dpl_modeloia ?? null, herramienta: f.dpl_herramientaia ?? null, filas: [f] })
+    else actual.filas.push(f)
+  }
+  for (const p of res.values()) p.filas.sort((a, b) => Number(a.dpl_orden ?? 0) - Number(b.dpl_orden ?? 0))
+  return res
+}

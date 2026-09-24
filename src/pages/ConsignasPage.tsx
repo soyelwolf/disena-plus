@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Icon from '../components/Icon'
+import ComparadorIA from '../components/ComparadorIA'
 import { MensajeFinalizado } from '../components/Aprobaciones'
 import { BotonComentarios, CAMPO_GENERAL, PanelComentarios, ZonaComentable, datosItem, type FiltroComentarios } from '../components/Comentarios'
 import TextoEnriquecido from '../components/TextoEnriquecido'
@@ -23,6 +24,8 @@ import {
   finalizarInstrumento,
   getActivacion,
   getComentarios,
+  getPropuestasIA,
+  type PropuestaIA,
   getRubricasCurso,
   guardarConsigna,
   habilitarEdicion,
@@ -89,6 +92,14 @@ export default function ConsignasPage() {
     if (cursoId) getComentarios(cursoId, 'consignas').then(setComentarios).catch(() => setComentarios([]))
   }, [cursoId])
   useEffect(cargarComentarios, [cargarComentarios])
+
+  // Initial IA proposal of each consigna (BACKUP list), to compare with the final version.
+  const [propuestas, setPropuestas] = useState<Map<string, PropuestaIA>>(new Map())
+  const [comparar, setComparar] = useState(false)
+  const sesionesKey = ctx?.elementos.map(e => e.sesionId).join(',') ?? ''
+  useEffect(() => {
+    if (sesionesKey) getPropuestasIA('consignas', sesionesKey.split(',')).then(setPropuestas).catch(() => setPropuestas(new Map()))
+  }, [sesionesKey])
 
   useEffect(() => {
     // Also when moving to another course: the previous selection does not belong to it.
@@ -174,7 +185,7 @@ export default function ConsignasPage() {
   const todoCompleto = ctx.elementos.length > 0 && completos === ctx.elementos.length
   const el = ctx.elementos.find(e => e.sesionId === seleccion) ?? null
   const esMonitor = rol.monitor
-  const puedeHabilitar = esMonitor && proceso.disponible && (proceso.estado === 'revision_dda' || proceso.estado === 'aprobado')
+  const puedeHabilitar = esMonitor && proceso.disponible && proceso.estado === 'aprobado'
   // Everything depends on the person's role in THIS course (LISTADO_CURSOS_PARA_IA):
   // Monitor EA / DDA open and resolve comments; the teaching team replies; all can read.
   const puedeComentar = (rol.monitor || rol.dda) && proceso.estado !== 'aprobado'
@@ -349,7 +360,7 @@ export default function ConsignasPage() {
                 <Icon name="info" size={15} />Ayuda rápida
               </span>
               <span style={{ fontSize: 13, lineHeight: 1.5, color: '#24433c' }}>
-                Completa los campos de cada elemento. Cuando todos tengan ✓, usa «Finalizar edición general» para avisar al Monitor EA y DDA que pueden revisar. Podrás seguir editando hasta que aprueben.
+                Completa los campos de cada elemento. Cuando todos tengan ✓, usa «Finalizar edición general» para avisar al Monitor EA y DDA que pueden revisar. Podrás seguir editando hasta que aprueben el Monitor EA y DDA.
               </span>
             </div>
           </div>
@@ -363,6 +374,7 @@ export default function ConsignasPage() {
               mostrarErrores={mostrarErrores}
               onChange={campos => editar(el, campos)}
               onIA={() => setModal('ia')}
+              onComparar={propuestas.has(el.sesionId) ? () => setComparar(true) : undefined}
               comentarios={comentarios}
               puedeComentar={puedeComentar}
               campoActivo={filtro?.entidadId && filtro.entidadId === el.consigna?.dpl_consignaid ? filtro.campo ?? null : null}
@@ -399,7 +411,7 @@ export default function ConsignasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        Puedes seguir editando mientras revisan. La edición se bloqueará solo cuando el Monitor EA apruebe.
+        Puedes seguir editando mientras revisan. Todo se congela solo cuando aprueben el Monitor EA y DDA.
       </Modal>
       <Modal
         open={modal === 'finalizado'}
@@ -418,6 +430,28 @@ export default function ConsignasPage() {
         Muy pronto podrás generar una propuesta automática de la consigna a partir de la información del curso. Por ahora, completa los campos manualmente.
       </Modal>
       <SavingOverlay show={finalizando} />
+      {el && propuestas.get(el.sesionId) && (() => {
+        const p = propuestas.get(el.sesionId)!
+        const ia = p.filas[0] ?? {}
+        const c = (el.consigna ?? {}) as unknown as Record<string, unknown>
+        return (
+          <ComparadorIA
+            open={comparar}
+            onClose={() => setComparar(false)}
+            titulo={`Propuesta IA vs versión final · ${el.nombre}`}
+            detalle={`Propuesta IA del ${new Date(p.fecha).toLocaleString('es-PE', { dateStyle: 'short', timeStyle: 'short' })}${p.modelo ? ` · ${p.modelo}` : ''}${p.herramienta ? ` (${p.herramienta})` : ''}`}
+            secciones={[
+              {
+                titulo: 'Consigna',
+                campos: [
+                  { label: 'Instrumento', ia: String(ia.dpl_instrumento ?? ''), final: String(c.dpl_instrumento ?? '') },
+                  ...CAMPOS_CONSIGNA.map(k => ({ label: k.label.replace(' (Opcional)', ''), ia: String(ia[k.key] ?? ''), final: String(c[k.key] ?? '') })),
+                ],
+              },
+            ]}
+          />
+        )
+      })()}
 
       <PanelComentarios
         filtro={filtro}
@@ -471,6 +505,7 @@ interface EditorProps {
   mostrarErrores: boolean
   onChange: (campos: Partial<ConsignaCampos>) => void
   onIA: () => void
+  onComparar?: () => void
   comentarios: Comentario[]
   puedeComentar: boolean
   campoActivo: string | null
@@ -478,7 +513,7 @@ interface EditorProps {
   onComentarios: (campo?: string, cita?: string) => void
 }
 
-function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, comentarios, puedeComentar, campoActivo, onComentarios }: EditorProps) {
+function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, onComparar, comentarios, puedeComentar, campoActivo, onComentarios }: EditorProps) {
   const consignaId = el.consigna?.dpl_consignaid
   const pendientes = comentarios.filter(k => !k.padreId && !k.resuelto && k.entidadId === consignaId).length
   const boton = (campo: string, label: string) =>
@@ -500,6 +535,11 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, comentar
               <Icon name="comment" size={16} />{pendientes ? `Comentarios pendientes (${pendientes})` : 'Comentarios'}
             </button>
           ) : null}
+          {onComparar && (
+            <button className="btn btn-outline" style={{ height: 42 }} onClick={onComparar}>
+              <Icon name="sparkles" size={16} />Comparar con propuesta IA
+            </button>
+          )}
           {editable && (
             <button className="btn btn-outline" style={{ height: 42 }} onClick={onIA}>
               <Icon name="sparkles" size={16} />Generar contenido

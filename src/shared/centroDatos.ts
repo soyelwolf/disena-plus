@@ -25,6 +25,62 @@ export interface TablaConfig {
   soloLectura?: string[]
   /** Choice columns (SharePoint "Opción"): the value is picked from this list. */
   opciones?: Record<string, string[]>
+  /** The whole list is read only (e.g. the IA BACKUP lists: they must stay as generated). */
+  soloLecturaTabla?: boolean
+}
+
+/** Headers shared by the five BACKUP lists. */
+const ETIQUETAS_BACKUP: Record<string, string> = {
+  dpl_backupid: 'ID_BACKUP',
+  dpl_version: 'VERSION',
+  dpl_fechabackup: 'FECHA_BACKUP',
+  dpl_origen: 'ORIGEN',
+  dpl_sesionbackupid: 'Elemento',
+  dpl_idcursotext: 'ID_CURSO_TEXT',
+  dpl_nombrecurso: 'NOMBRE_CURSO',
+  dpl_elemento: 'ELEMENTO',
+  dpl_json: 'JSON_IA',
+  dpl_inputs: 'INPUTS',
+  dpl_resultadogpt: 'RESULTADO_IA',
+}
+const ORDEN_BACKUP = ['dpl_idcursotext', 'dpl_elemento', 'dpl_version', 'dpl_fechabackup']
+
+/** MATRIZ_SN_RUBRICA per question (N°PREGUNTA = order). Used with and without rubric. */
+const ETIQUETAS_MATRIZ: Record<string, string> = {
+  dpl_orden: 'N°PREGUNTA',
+  dpl_nombreunidad: 'NOMBRE_UNIDAD',
+  dpl_ejetematico: 'EJE_TEMATICO',
+  dpl_taxonomia: 'TAXONOMIA',
+  dpl_tipoitem: 'TIPO_ITEMS',
+  dpl_puntajeia: 'PUNTAJE_IA',
+  dpl_plataforma: 'PLATAFORMA',
+  dpl_cantidaditems: 'CANT_ITEMS',
+  dpl_indicador: 'INDICADOR',
+  dpl_puntajeestandar: 'P_estandar',
+  dpl_criterio: 'Criterio',
+}
+const ORDEN_MATRIZ = ['dpl_matrizid', 'dpl_orden', 'dpl_nombreunidad', 'dpl_ejetematico', 'dpl_taxonomia', 'dpl_tipoitem', 'dpl_puntajeia', 'dpl_plataforma', 'dpl_cantidaditems', 'dpl_indicador', 'dpl_puntajeestandar', 'dpl_criterio']
+const ETIQUETAS_LISTA: Record<string, string> = { dpl_orden: 'N°', dpl_indicador: 'Indicadores', dpl_puntaje: 'Puntaje', dpl_respuesta: 'Sí / No', dpl_observaciones: 'Observaciones' }
+const ORDEN_LISTA = ['dpl_listacotejoid', 'dpl_orden', 'dpl_indicador', 'dpl_puntaje', 'dpl_respuesta', 'dpl_observaciones']
+/** ESCALA_DE_VALORACION levels as in SharePoint; the old ones stay hidden. */
+const ETIQUETAS_ESCALA: Record<string, string> = {
+  dpl_orden: 'N°',
+  dpl_indicador: 'Indicadores',
+  dpl_puntajeconsolidado: 'Consolidado',
+  dpl_puntajeendesarrollo: 'En desarrollo',
+  dpl_puntajeeninicio: 'En inicio',
+  dpl_puntajenoevidenciado: 'No evidenciado',
+  dpl_observaciones: 'Observaciones',
+}
+const ORDEN_ESCALA = ['dpl_escalavaloracionid', 'dpl_orden', 'dpl_indicador', 'dpl_puntajeconsolidado', 'dpl_puntajeendesarrollo', 'dpl_puntajeeninicio', 'dpl_puntajenoevidenciado', 'dpl_observaciones']
+const ESCALA_ANTIGUA = ['dpl_puntajeexcelente', 'dpl_puntajebueno', 'dpl_puntajeregular', 'dpl_puntajeconerrores', 'dpl_respuestaseleccionada']
+const ETIQUETAS_CABECERA_IA: Record<string, string> = {
+  dpl_json: 'JSON_IA',
+  dpl_inputs: 'INPUTS_1',
+  dpl_resultadogpt: 'RESULTADO_IA',
+  dpl_paraia: 'PARA_IA',
+  dpl_usuarioia: 'IA_Usuario',
+  dpl_fechaia: 'IA_Fecha',
 }
 
 /** Options of UNIDADES_CURSOS_IA → ¿Qué instrumento (s) de evaluación se empleará? */
@@ -74,9 +130,15 @@ export const TABLAS: TablaConfig[] = [
   { grupo: 'Consignas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas', etiqueta: 'dpl_idconsignatext', orden: ['dpl_idconsignatext', 'dpl_instrumento'], opciones: { dpl_instrumento: OPCIONES_INSTRUMENTO_CONSIGNA } },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Criterios de las rúbricas', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
   { grupo: 'Rúbricas', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'REL_RUBRICA_COMPETENCIAS', descripcion: 'Competencias elegidas por criterio' },
-  { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz' },
-  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'CONSOLIDADO_LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo' },
-  { grupo: 'Escala de valoración', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'CONSOLIDADO_ESCALA_DE_VALORACION', descripcion: 'Indicadores de la escala' },
+  { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz (con y sin rúbrica)', etiquetas: ETIQUETAS_MATRIZ, orden: ORDEN_MATRIZ },
+  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo', etiquetas: ETIQUETAS_LISTA, orden: ORDEN_LISTA },
+  { grupo: 'Escala de valoración', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'ESCALA_DE_VALORACION', descripcion: 'Indicadores de la escala', etiquetas: ETIQUETAS_ESCALA, orden: ORDEN_ESCALA, ocultas: ESCALA_ANTIGUA },
+  // IA BACKUP lists: the proposal exactly as the IA generated it (read only), to compare with the final version.
+  { grupo: 'Consignas', tabla: 'dpl_consigna_backup', pk: 'dpl_backupid', titulo: 'CONSOLIDADO_CONSIGNAS_BACKUP', descripcion: 'Propuesta IA inicial de cada consigna', etiquetas: ETIQUETAS_BACKUP, orden: [...ORDEN_BACKUP, 'dpl_idconsignatext'], soloLecturaTabla: true },
+  { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio_backup', pk: 'dpl_backupid', titulo: 'CONSOLIDADO_RUBRICAS_BACKUP', descripcion: 'Propuesta IA inicial de los criterios', etiquetas: ETIQUETAS_BACKUP, orden: [...ORDEN_BACKUP, 'dpl_orden', 'dpl_criterio'], soloLecturaTabla: true },
+  { grupo: 'Matriz', tabla: 'dpl_matrizpregunta_backup', pk: 'dpl_backupid', titulo: 'MATRIZ_SN_RUBRICA_BACKUP', descripcion: 'Propuesta IA inicial de las preguntas', etiquetas: { ...ETIQUETAS_MATRIZ, ...ETIQUETAS_BACKUP }, orden: [...ORDEN_BACKUP, ...ORDEN_MATRIZ.slice(1)], soloLecturaTabla: true },
+  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador_backup', pk: 'dpl_backupid', titulo: 'LISTA_DE_COTEJO_BACKUP', descripcion: 'Propuesta IA inicial de los indicadores', etiquetas: { ...ETIQUETAS_LISTA, ...ETIQUETAS_BACKUP }, orden: [...ORDEN_BACKUP, ...ORDEN_LISTA.slice(1)], soloLecturaTabla: true },
+  { grupo: 'Escala de valoración', tabla: 'dpl_escalaindicador_backup', pk: 'dpl_backupid', titulo: 'ESCALA_DE_VALORACION_BACKUP', descripcion: 'Propuesta IA inicial de los indicadores', etiquetas: { ...ETIQUETAS_ESCALA, ...ETIQUETAS_BACKUP }, orden: [...ORDEN_BACKUP, ...ORDEN_ESCALA.slice(1)], ocultas: ESCALA_ANTIGUA, soloLecturaTabla: true },
   { grupo: 'Matriz', tabla: 'dpl_taxonomiaitem', pk: 'dpl_taxonomiaitemid', titulo: 'TAXONOMIA_MATRIZ_SN_RUBRICA', descripcion: 'Catálogo de taxonomía' },
   { grupo: 'Competencias', tabla: 'dpl_competencia', pk: 'dpl_competenciaid', titulo: 'COMPETENCIAS_PARA_MAPEO', descripcion: 'Catálogo de competencias', etiqueta: 'dpl_competencia' },
   { grupo: 'Competencias', tabla: 'dpl_programa', pk: 'dpl_programaid', titulo: 'PROGRAMAS', descripcion: 'Catálogo de programas', etiqueta: 'dpl_nombre' },
@@ -86,9 +148,9 @@ export const TABLAS: TablaConfig[] = [
   { grupo: 'Seguimiento', tabla: 'dpl_comentario', pk: 'dpl_comentarioid', titulo: 'COMENTARIOS', descripcion: 'Comentarios de los aprobadores' },
   { grupo: 'Competencias', tabla: 'dpl_cursoprogramacompetencia', pk: 'dpl_cursoprogramacompetenciaid', titulo: 'Competencias por curso y programa', descripcion: 'Alimenta las competencias de Rúbricas' },
   { grupo: 'Rúbricas', tabla: 'dpl_rubrica', pk: 'dpl_rubricaid', titulo: 'Rúbricas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
-  { grupo: 'Matriz', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'Matrices (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
-  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'Listas de cotejo (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
-  { grupo: 'Escala de valoración', tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid', titulo: 'Escalas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Matriz', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'Matrices (cabecera)', descripcion: 'Una por elemento: estado, IA y RealizadoMatrizSinRubrica', etiqueta: 'dpl_nombre', etiquetas: { ...ETIQUETAS_CABECERA_IA, dpl_realizado: 'RealizadoMatrizSinRubrica', dpl_usuarioia: 'IA_ParaMatrizSinRubrica_Usuario', dpl_fechaia: 'IA_ParaMatrizSinRubrica_Fecha' } },
+  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'Listas de cotejo (cabecera)', descripcion: 'Una por elemento: ID_LISTA_TEXT, estado, IA y RealizadoLista', etiqueta: 'dpl_nombre', orden: ['dpl_idlistatext'], etiquetas: { ...ETIQUETAS_CABECERA_IA, dpl_resultadogpt: 'RESULTADO_GPT', dpl_json: 'JSON', dpl_realizado: 'RealizadoLista' } },
+  { grupo: 'Escala de valoración', tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid', titulo: 'Escalas (cabecera)', descripcion: 'Una por elemento: ID_ESCALA_TEXT, tipo de escala, IA y RealizadoEscala', etiqueta: 'dpl_nombre', orden: ['dpl_idescalatext', 'dpl_tipoescala'], etiquetas: { ...ETIQUETAS_CABECERA_IA, dpl_resultadogpt: 'RESULTADO_GPT', dpl_json: 'JSON', dpl_realizado: 'RealizadoEscala' } },
 ]
 
 /** Column headers — SharePoint names where the column came from a SharePoint list. */
@@ -189,6 +251,17 @@ const ETIQUETAS: Record<string, string> = {
   dpl_notif_escala_enviada: 'NotificacionEscalaEnviada',
   dpl_notif_lista_enviada: 'NotificacionListaEnviada',
   dpl_catalogoelementoid: 'Elemento_Catalogo',
+  dpl_inputs: 'INPUTS',
+  dpl_paraia: 'PARA_IA',
+  dpl_usuarioia: 'Usuario IA',
+  dpl_idlistatext: 'ID_LISTA_TEXT',
+  dpl_idescalatext: 'ID_ESCALA_TEXT',
+  dpl_tipoescala: 'Escala',
+  dpl_indicador: 'Indicador',
+  dpl_observaciones: 'Observaciones',
+  dpl_matrizid: 'Matriz',
+  dpl_listacotejoid: 'Lista de cotejo',
+  dpl_escalavaloracionid: 'Escala',
 }
 
 /** Foreign-key columns → the table they point at (shown by name, not id). */
@@ -204,6 +277,7 @@ export const REFERENCIAS: Record<string, string> = {
   dpl_matrizid: 'dpl_matriz',
   dpl_listacotejoid: 'dpl_listacotejo',
   dpl_escalavaloracionid: 'dpl_escalavaloracion',
+  dpl_sesionbackupid: 'dpl_sesion',
 }
 
 /** System columns hidden from the grid (still exported). */
@@ -243,12 +317,20 @@ export interface Relaciones {
 }
 
 export async function cargarRelaciones(): Promise<Relaciones> {
-  const [nombres, u, s, r, c] = await Promise.all([
+  const [nombres, u, s, r, c, m, l, e] = await Promise.all([
     cargarNombres(),
     supabase.from('dpl_unidad').select('dpl_unidadid, dpl_cursoid').limit(10000),
     supabase.from('dpl_sesion').select('dpl_sesionid, dpl_unidadid').limit(10000),
     supabase.from('dpl_rubrica').select('dpl_rubricaid, dpl_sesionid').limit(10000),
     supabase.from('dpl_curso').select('dpl_cursoid, dpl_idcursotext').limit(10000),
+    supabase.from('dpl_matriz').select('dpl_matrizid, dpl_sesionid').limit(10000),
+    supabase.from('dpl_listacotejo').select('dpl_listacotejoid, dpl_sesionid').limit(10000),
+    supabase.from('dpl_escalavaloracion').select('dpl_escalavaloracionid, dpl_sesionid').limit(10000),
+  ])
+  const cabeceraSesion = new Map<string, string>([
+    ...(m.data ?? []).map(x => [x.dpl_matrizid as string, x.dpl_sesionid as string] as [string, string]),
+    ...(l.data ?? []).map(x => [x.dpl_listacotejoid as string, x.dpl_sesionid as string] as [string, string]),
+    ...(e.data ?? []).map(x => [x.dpl_escalavaloracionid as string, x.dpl_sesionid as string] as [string, string]),
   ])
   const unidadCurso = new Map((u.data ?? []).map(x => [x.dpl_unidadid as string, x.dpl_cursoid as string]))
   const sesionUnidad = new Map((s.data ?? []).map(x => [x.dpl_sesionid as string, x.dpl_unidadid as string]))
@@ -259,7 +341,9 @@ export async function cargarRelaciones(): Promise<Relaciones> {
     (f.dpl_cursoid as string | undefined) ??
     (f.dpl_unidadid ? unidadCurso.get(f.dpl_unidadid as string) ?? null : null) ??
     deSesion(f.dpl_sesionid) ??
-    (f.dpl_rubricaid ? deSesion(rubricaSesion.get(f.dpl_rubricaid as string)) : null)
+    (f.dpl_rubricaid ? deSesion(rubricaSesion.get(f.dpl_rubricaid as string)) : null) ??
+    deSesion(f.dpl_sesionbackupid) ??
+    deSesion(cabeceraSesion.get((f.dpl_matrizid ?? f.dpl_listacotejoid ?? f.dpl_escalavaloracionid) as string))
   return { nombres, cursoDe, cursoTexto }
 }
 

@@ -384,11 +384,11 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
                   if (typeof v === 'boolean')
                     return (
                       <td key={c} style={{ textAlign: 'center' }}>
-                        <input type="checkbox" checked={v} onChange={() => alternar(f, c)} aria-label={etiqueta(c)} />
+                        <input type="checkbox" checked={v} disabled={cfg.soloLecturaTabla} onChange={() => alternar(f, c)} aria-label={etiqueta(c)} />
                       </td>
                     )
                   const opciones = cfg.opciones?.[c]
-                  if (opciones)
+                  if (opciones && !cfg.soloLecturaTabla)
                     return (
                       <td key={c}>
                         <button className="celda celda-edit" title="Clic para elegir" onClick={() => setOpcion({ fila: f, col: c, opciones })}>
@@ -396,7 +396,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
                         </button>
                       </td>
                     )
-                  if (REFERENCIAS_EDITABLES.has(c))
+                  if (REFERENCIAS_EDITABLES.has(c) && !cfg.soloLecturaTabla)
                     return (
                       <td key={c}>
                         <button className="celda celda-edit" title="Clic para elegir" onClick={() => setReferencia({ fila: f, col: c })}>
@@ -405,7 +405,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
                       </td>
                     )
                   const soloLectura =
-                    !!REFERENCIAS[c] || !!cfg.soloLectura?.includes(c) || Array.isArray(v) || (typeof v === 'object' && v !== null)
+                    !!cfg.soloLecturaTabla || !!REFERENCIAS[c] || !!cfg.soloLectura?.includes(c) || Array.isArray(v) || (typeof v === 'object' && v !== null)
                   return (
                     <td key={c}>
                       {soloLectura ? (
@@ -419,7 +419,7 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
                   )
                 })}
                 <td>
-                  <button className="icon-btn" aria-label="Eliminar registro" onClick={() => setBorrar(f)}><Icon name="trash" size={17} /></button>
+                  {!cfg.soloLecturaTabla && <button className="icon-btn" aria-label="Eliminar registro" onClick={() => setBorrar(f)}><Icon name="trash" size={17} /></button>}
                 </td>
               </tr>
             ))}

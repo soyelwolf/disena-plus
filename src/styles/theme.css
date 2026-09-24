@@ -682,3 +682,17 @@ body.con-panel-comentarios .shell-main { padding-right: 440px; }
 .regla-detalle { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
 .regla-ok { display: inline-flex; align-items: center; gap: 6px; color: #0a7a3e; font-weight: 700; }
 .regla-mal { display: inline-flex; align-items: center; gap: 6px; color: #8a4b00; }
+
+/* ── Propuesta IA vs versión final ─────────────────────────────────── */
+.drawer-ancho { width: min(920px, 100%); }
+.diff-leyenda { display: flex; flex-wrap: wrap; gap: 18px; font-size: 13px; color: #3d434a; }
+.diff-seccion { display: flex; flex-direction: column; gap: 12px; border-top: 1px solid var(--color-border); padding-top: 14px; }
+.diff-nota { font-size: 13px; font-weight: 700; color: var(--color-warning); }
+.diff-campo { display: flex; flex-direction: column; gap: 6px; }
+.diff-texto { font-size: 14px; line-height: 1.7; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 4px; background: #fff; }
+.diff-agregado { background: #dff3e6; color: #0a5c2e; text-decoration: none; border-radius: 2px; }
+.diff-quitado { background: #fde4e4; color: #8a1c1c; text-decoration: line-through; border-radius: 2px; }
+.diff-lados { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.diff-lados > div { border: 1px solid var(--color-border); border-radius: 4px; padding: 10px 12px; font-size: 14px; line-height: 1.6; background: #fff; }
+.diff-lados small { display: block; font-size: 12px; font-weight: 700; color: var(--color-text-muted); margin-bottom: 4px; }
+@media (max-width: 700px) { .diff-lados { grid-template-columns: 1fr; } }

@@ -86,8 +86,7 @@ export function usePuedeEditar(proceso: ProcesoCurso | null, rol: RolCurso) {
   if (!rol.editar) return { puede: false, motivo: 'En este curso tu rol solo permite ver esta información.' }
   if (!proceso) return { puede: false, motivo: '' }
   // "Finalizar edición general" only notifies the approvers; screens freeze
-  // only once there is an approval check (Monitor EA, then DDA).
+  // only when both approval checks are in (Monitor EA and DDA).
   if (proceso.estado === 'aprobado') return { puede: false, motivo: 'El proceso fue aprobado por el Monitor EA y DDA, y está cerrado. Solo el Monitor EA puede habilitar la edición.' }
-  if (proceso.estado === 'revision_dda') return { puede: false, motivo: 'El Monitor EA aprobó el proceso y está en revisión de DDA. Solo el Monitor EA puede habilitar la edición.' }
   return { puede: true, motivo: '' }
 }
