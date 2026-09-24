@@ -422,6 +422,29 @@ export function problemaElemento(r: RubricaElemento): ProblemaRubrica | null {
   return null
 }
 
+/**
+ * Rubric rules shown as warnings while the teacher works (saving is never
+ * blocked; "Finalizar edición general" still requires the 20 points).
+ * Criteria in screen order; numbers may be strings (form) or numbers (database).
+ */
+export function advertenciasRubrica(criterios: Array<Partial<Record<keyof CriterioCampos, unknown>>>): string[] {
+  const num = (v: unknown) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(v))
+  const avisos: string[] = []
+  if (criterios.length) {
+    const total = criterios.reduce<number>((s, c) => s + (num(c.dpl_puntajeestandar) ?? 0), 0)
+    const falta = Math.round((PUNTAJE_OBJETIVO - total) * 100) / 100
+    if (falta > 0) avisos.push(`El estándar esperado suma ${total} de ${PUNTAJE_OBJETIVO} pt: ${falta === 1 ? 'falta' : 'faltan'} ${falta} pt.`)
+    else if (falta < 0) avisos.push(`El estándar esperado suma ${total} pt: te pasaste por ${-falta} pt (debe ser ${PUNTAJE_OBJETIVO}).`)
+  }
+  criterios.forEach((c, i) => {
+    const p = NIVELES.map(n => num(c[n.puntaje]))
+    if (p.some(x => x === null)) return
+    if (!p.every((x, k) => k === 0 || (p[k - 1] as number) > (x as number)))
+      avisos.push(`Criterio N°${i + 1}: los puntajes deben ir de mayor a menor (Estándar esperado → En proceso 2 → En proceso 1 → Inicial).`)
+  })
+  return avisos
+}
+
 async function asegurarRubrica(elemento: Elemento, usuario: string): Promise<string> {
   const { data: existente } = await supabase
     .from('dpl_rubrica')

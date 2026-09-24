@@ -10,6 +10,7 @@ import {
   LIMITES,
   NIVELES,
   crearCriterios,
+  advertenciasRubrica,
   guardarRubricaCompleta,
   getComentarios,
   getCriteriosDeElemento,
@@ -94,6 +95,7 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
   const [sucio, setSucio] = useState(false)
   const [confirmarCancelar, setConfirmarCancelar] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const [avisos, setAvisos] = useState<string[] | null>(null)
   // Criteria the element already has: new ones continue their numbering.
   const [existentes, setExistentes] = useState<CriterioRow[]>([])
   // Reviewers' comments, so the teacher can address them while editing.
@@ -161,7 +163,18 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
     setIds(prev => prev.filter((_, j) => j !== i))
   }
 
+  // Rules of the whole rubric after saving (existing criteria + the new ones when adding).
+  const rubricaResultante = editando ? filas : [...existentes, ...filas]
+  const pedirGuardar = () => {
+    setIntento(true)
+    if (hayErrores) return
+    const a = advertenciasRubrica(rubricaResultante)
+    if (a.length) setAvisos(a)
+    else guardar()
+  }
+
   const guardar = async () => {
+    setAvisos(null)
     setIntento(true)
     if (hayErrores || !user) return
     setGuardando(true)
@@ -223,7 +236,7 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
         <button className="btn btn-outline" style={{ height: 44, padding: '0 24px' }} onClick={() => (sucio ? setConfirmarCancelar(true) : navigate(volver))}>
           Cancelar
         </button>
-        <button className="btn btn-primary" style={{ height: 44, padding: '0 28px' }} onClick={guardar}>
+        <button className="btn btn-primary" style={{ height: 44, padding: '0 28px' }} onClick={pedirGuardar}>
           {editando ? 'Guardar rúbrica' : 'Guardar'}
         </button>
       </div>
@@ -264,6 +277,22 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
         lado={rol.lado}
         etiquetaRol={rol.etiqueta}
       />
+      <Modal
+        open={!!avisos}
+        title="La rúbrica aún no cumple todas las reglas"
+        onClose={() => setAvisos(null)}
+        actions={
+          <>
+            <button className="btn btn-outline" onClick={() => setAvisos(null)}>Seguir editando</button>
+            <button className="btn btn-primary" onClick={guardar}>Guardar de todos modos</button>
+          </>
+        }
+      >
+        <ul style={{ margin: '0 0 10px 18px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {avisos?.map(a => <li key={a}>{a}</li>)}
+        </ul>
+        Puedes guardar y seguir después, pero para «Finalizar edición general» el estándar esperado de cada elemento debe sumar {PUNTAJE_OBJETIVO} pt.
+      </Modal>
       <SavingOverlay show={guardando} />
     </div>
   )

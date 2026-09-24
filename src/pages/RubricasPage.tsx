@@ -17,6 +17,7 @@ import {
   habilitarEdicion,
   instrumentosRequeridos,
   marcarCompetencia,
+  advertenciasRubrica,
   problemaElemento,
   totalEstandar,
   type Comentario,
@@ -298,6 +299,16 @@ export default function RubricasPage() {
             </span>
           </div>
 
+          {(() => {
+            // Always visible while working; after "Finalizar" the red banner below takes over the 20 pt rule.
+            const avisos = advertenciasRubrica(r.criterios).filter((_, k) => !(intentoFinalizar && problemas[i] === 'suma' && k === 0 && totalEstandar(r.criterios) !== PUNTAJE_OBJETIVO))
+            return avisos.length > 0 ? (
+              <div className="alert-banner alert-warn" style={{ justifyContent: 'flex-start', alignItems: 'flex-start', padding: '10px 14px' }}>
+                <Icon name="alert" size={15} />
+                <span style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>{avisos.map(a => <span key={a}>{a}</span>)}</span>
+              </div>
+            ) : null
+          })()}
           {intentoFinalizar && problemas[i] === 'suma' && (
             <div className="alert-banner alert-danger">
               <Icon name="alert" size={15} />La suma del estándar esperado de los criterios, en cada elemento de evaluación debe ser igual a {PUNTAJE_OBJETIVO} pts.
@@ -411,7 +422,12 @@ export default function RubricasPage() {
           </>
         }
       >
-        El criterio se eliminará de la lista actual.
+        {eliminar && (
+          <>
+            Se eliminará el criterio <b>N°{eliminar.dpl_orden ?? ''} · {eliminar.dpl_criterio || 'Sin nombre'}</b>
+            {' '}({Number(eliminar.dpl_puntajeestandar ?? 0)} pt en estándar esperado). Los demás se volverán a numerar.
+          </>
+        )}
       </Modal>
       <Modal
         open={modal === 'ia_pendiente'}
