@@ -1,87 +1,169 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useCursos } from '../shared/hooks/useCursos'
-import { buildNombreContainsFilter } from '../shared/services/cursoService'
 import { MOCK_CURSO } from '../shared/mockData'
+import Icon from '../components/Icon'
 import type { Curso } from '../types/curso'
 
-export default function ListadoCursos() {
-  const [search, setSearch] = useState('')
-  const [debounced, setDebounced] = useState('')
+const normalizar = (s: string) =>
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-  useEffect(() => {
-    document.title = 'Listado de Cursos — Diseña+'
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => setDebounced(search.trim()), 300)
-    return () => clearTimeout(t)
-  }, [search])
-
-  const filter = useMemo(
-    () => (debounced ? buildNombreContainsFilter(debounced) : undefined),
-    [debounced],
+/** "GESTION II" → "Gestion II" (the source data is all caps; roman numerals stay upper). */
+const capitalizar = (s: string) =>
+  (s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()).replace(
+    /\b(i{1,3}|iv|vi{0,3}|ix|x)\b/g,
+    m => m.toUpperCase(),
   )
 
-  const { items, isLoading, error, totalCount } = useCursos({ filter, pageSize: 50 })
+export default function ListadoCursos() {
+  const navigate = useNavigate()
+  const [busqueda, setBusqueda] = useState('')
+  const [tipo, setTipo] = useState('')
 
-  // The Web API only exists once the site is deployed to Power Pages — running
-  // via `npm run dev` on localhost has no `/_api/` backend. Fall back to a
-  // sample course so the rest of the flow (hub, secciones, detail/editing) can
-  // still be designed and demoed locally.
-  const usingMock = !isLoading && !!error
-  const displayItems: Curso[] = usingMock
-    ? [MOCK_CURSO].filter(c => !debounced || c.nombre.toLowerCase().includes(debounced.toLowerCase()))
-    : items
+  useEffect(() => {
+    document.title = 'Cursos — Diseña+'
+  }, [])
+
+  // The catalog is small (hundreds of rows): load it once and filter locally so
+  // search-by-name-or-code and the modality filter respond instantly.
+  const { items, isLoading, error } = useCursos({ pageSize: 1000 })
+  const cursos: Curso[] = !isLoading && error ? [MOCK_CURSO] : items
+
+  const tipos = useMemo(
+    () => [...new Set(cursos.map(c => c.tipoEnsenanza).filter(Boolean))].sort() as string[],
+    [cursos],
+  )
+
+  const filtrados = useMemo(() => {
+    const q = normalizar(busqueda.trim())
+    return cursos.filter(c => {
+      if (tipo && c.tipoEnsenanza !== tipo) return false
+      if (!q) return true
+      return [c.nombre, c.codigoCatalogo, c.idCursoText].some(v => v && normalizar(v).includes(q))
+    })
+  }, [cursos, busqueda, tipo])
+
+  const hayFiltros = busqueda !== '' || tipo !== ''
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-8)' }}>
-      <div className="card animate-in row-between" style={{ padding: 'var(--space-4)', marginBottom: 'var(--space-4)' }}>
-        <div>
-          <p style={{ fontWeight: 700, marginBottom: 'var(--space-1)' }}>📁 Listado de cursos</p>
-          <p className="muted" style={{ fontSize: '0.9rem' }}>
-            Selecciona el curso para comenzar el proceso de construcción de la carpeta instruccional.
-          </p>
-        </div>
-        {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div className="row-between">
+        <h1 style={{ fontSize: 28, fontWeight: 700 }}>Cursos</h1>
+        {!isLoading && error && <span className="badge badge-warning">Sin conexión a la base · datos de ejemplo</span>}
       </div>
 
-      <div className="animate-in" style={{ marginBottom: 'var(--space-4)' }}>
-        <label htmlFor="filtro-curso" className="sr-only">Filtrar por curso</label>
-        <input
-          id="filtro-curso"
-          type="search"
-          placeholder="Filtrar por nombre de curso…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-      </div>
-
-      {isLoading && <p className="muted">Cargando cursos…</p>}
-
-      {!isLoading && (
-        <>
-          <p className="muted animate-in" style={{ fontSize: '0.85rem', marginBottom: 'var(--space-3)' }}>
-            {usingMock ? displayItems.length : totalCount} curso{(usingMock ? displayItems.length : totalCount) === 1 ? '' : 's'}
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 'var(--space-3)' }}>
-            {displayItems.map(curso => (
-              <Link
-                key={curso.id}
-                to={`/cursos/${curso.id}`}
-                className="card card-interactive animate-in"
-                style={{ padding: 'var(--space-3)', display: 'block' }}
-              >
-                <p style={{ fontFamily: 'var(--font-heading)', fontWeight: 700 }}>{curso.nombre}</p>
-                <p className="mono muted" style={{ fontSize: '0.8rem', margin: 'var(--space-1) 0' }}>
-                  {curso.codigoCatalogo} · {curso.tipoEnsenanza}
-                </p>
-                <p className="muted" style={{ fontSize: '0.85rem' }}>{curso.carrera}</p>
-              </Link>
-            ))}
+      <div className="panel" style={{ padding: '18px 20px', display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ flex: '1 1 380px', maxWidth: 560 }}>
+          <label className="field-label" htmlFor="buscar-curso">Curso</label>
+          <div className="input-box">
+            <input
+              id="buscar-curso"
+              type="search"
+              placeholder="Ingresa y selecciona el nombre o código del curso"
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+            />
+            <span style={{ color: 'var(--color-primary)', display: 'flex' }}>
+              <Icon name="search" size={20} strokeWidth={2} />
+            </span>
           </div>
-          {displayItems.length === 0 && (
-            <p className="muted">No se encontraron cursos con ese filtro.</p>
+        </div>
+        <div style={{ flex: '0 1 270px' }}>
+          <label className="field-label" htmlFor="tipo-ensenanza">Tipo de enseñanza</label>
+          <select
+            id="tipo-ensenanza"
+            value={tipo}
+            onChange={e => setTipo(e.target.value)}
+            style={{ height: 44, borderColor: 'var(--color-input-border)', borderRadius: 4 }}
+          >
+            <option value="">Selecciona una opción</option>
+            {tipos.map(t => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
+        <button
+          className="btn btn-outline"
+          style={{ marginLeft: 'auto', height: 44, padding: '0 22px' }}
+          disabled={!hayFiltros}
+          onClick={() => {
+            setBusqueda('')
+            setTipo('')
+          }}
+        >
+          Limpiar
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16, padding: '96px 0' }}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>Buscando resultados</span>
+          <span className="spinner-card">
+            <span className="spinner" style={{ display: 'flex', color: 'var(--color-text)' }}>
+              <Icon name="spinner" size={28} strokeWidth={2.4} />
+            </span>
+          </span>
+        </div>
+      ) : (
+        <>
+          <span style={{ fontSize: 14, color: '#3d434a' }}>
+            Cursos: {filtrados.length} de {cursos.length}
+          </span>
+
+          {filtrados.length === 0 ? (
+            <div className="panel" style={{ padding: '56px 24px', textAlign: 'center', color: 'var(--color-text-muted)' }}>
+              No encontramos cursos con esos filtros.
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Curso</th>
+                  <th style={{ width: 280 }}>Enseñanza</th>
+                  <th className="icon-cell">Sílabo</th>
+                  <th className="icon-cell">Ingresar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrados.map((c, i) => (
+                  <tr
+                    key={c.id}
+                    style={{ cursor: 'pointer', animationDelay: `${Math.min(i, 12) * 30}ms` }}
+                    onClick={() => navigate(`/cursos/${c.id}`)}
+                  >
+                    <td>
+                      <div style={{ fontSize: 15 }}>{capitalizar(c.nombre)}</div>
+                      <div style={{ fontSize: 13, color: '#3d434a' }}>{c.codigoCatalogo}</div>
+                    </td>
+                    <td>{c.tipoEnsenanza}</td>
+                    <td className="icon-cell">
+                      {/* The sílabo PDF upload lives in the Centro de datos (next step). */}
+                      <button
+                        className="icon-btn"
+                        disabled
+                        title="Sílabo aún no cargado"
+                        aria-label={`Ver sílabo de ${c.nombre} (aún no cargado)`}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <Icon name="eye" size={22} />
+                      </button>
+                    </td>
+                    <td className="icon-cell">
+                      <button
+                        className="icon-btn go"
+                        aria-label={`Ingresar a ${c.nombre}`}
+                        onClick={e => {
+                          e.stopPropagation()
+                          navigate(`/cursos/${c.id}`)
+                        }}
+                      >
+                        <Icon name="arrowRight" size={22} strokeWidth={2} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </>
       )}
