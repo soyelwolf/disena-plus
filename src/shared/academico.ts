@@ -833,3 +833,17 @@ export async function cambiarAsignacion(a: Asignacion, asignado: boolean): Promi
     fail(error, 'No se pudo quitar la asignación.')
   }
 }
+
+/** Criteria already saved for one element (ordered), for "Agregar criterio" to continue from. */
+export async function getCriteriosDeElemento(sesionId: string): Promise<CriterioRow[]> {
+  const { data: rubrica, error } = await supabase.from('dpl_rubrica').select('dpl_rubricaid').eq('dpl_sesionid', sesionId).maybeSingle()
+  fail(error, 'No se pudo cargar la rúbrica.')
+  if (!rubrica) return []
+  const { data, error: e2 } = await supabase
+    .from('dpl_rubricacriterio')
+    .select('*')
+    .eq('dpl_rubricaid', rubrica.dpl_rubricaid)
+    .order('dpl_orden', { ascending: true })
+  fail(e2, 'No se pudieron cargar los criterios.')
+  return (data ?? []) as CriterioRow[]
+}

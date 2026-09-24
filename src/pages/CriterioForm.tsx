@@ -11,6 +11,10 @@ import {
   actualizarCriterio,
   crearCriterios,
   getCriterio,
+  getCriteriosDeElemento,
+  PUNTAJE_OBJETIVO,
+  totalEstandar,
+  type CriterioRow,
   type CriterioCampos,
 } from '../shared/academico'
 import { useContenidoAcademico, usePuedeEditar } from '../shared/hooks/useContenidoAcademico'
@@ -82,6 +86,11 @@ export default function CriterioForm() {
   const [sucio, setSucio] = useState(false)
   const [confirmarCancelar, setConfirmarCancelar] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  // Criteria the element already has: new ones continue their numbering.
+  const [existentes, setExistentes] = useState<CriterioRow[]>([])
+  useEffect(() => {
+    if (sesionId) getCriteriosDeElemento(sesionId).then(setExistentes).catch(() => setExistentes([]))
+  }, [sesionId])
 
   useEffect(() => {
     document.title = `${editando ? 'Editar' : 'Agregar'} criterio — Diseña+`
@@ -147,11 +156,15 @@ export default function CriterioForm() {
       <h1 style={{ fontSize: 28, fontWeight: 700 }}>{editando ? 'Editar criterio' : 'Agregar criterio'}</h1>
       <CursoHeader titulo={elemento.nombre} curso={ctx.nombre} tipoEnsenanza={ctx.tipoEnsenanza} programas={ctx.programas} />
 
+      {!editando && existentes.length > 0 && (
+        <ResumenExistentes existentes={existentes} nuevos={filas} />
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {filas.map((f, i) => (
           <FilaCriterio
             key={i}
-            numero={i + 1}
+            numero={editando ? Number(existentes.find(c => c.dpl_rubricacriterioid === criterioId)?.dpl_orden ?? i + 1) : existentes.length + i + 1}
             fila={f}
             errores={intento ? errores[i] : {}}
             onChange={(k, v) => setCampo(i, k, v)}
@@ -296,6 +309,36 @@ function Area(props: { value: string; max: number; error?: string; onChange: (v:
         <span style={{ color: excedido ? 'var(--color-danger)' : 'var(--color-text-muted)', whiteSpace: 'nowrap' }}>
           {excedido ? `-${value.length - max}` : value.length}/{max}
         </span>
+      </div>
+    </div>
+  )
+}
+
+/** Existing criteria of the element and how the new ones move the 20-point total. */
+function ResumenExistentes({ existentes, nuevos }: { existentes: CriterioRow[]; nuevos: Fila[] }) {
+  const actual = totalEstandar(existentes)
+  const sumaNuevos = nuevos.reduce((s, f) => s + (Number(f.dpl_puntajeestandar) || 0), 0)
+  const total = actual + sumaNuevos
+  const falta = PUNTAJE_OBJETIVO - total
+  return (
+    <div className="panel" style={{ padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 10, border: '1px solid var(--color-border)' }}>
+      <div className="row-between" style={{ flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 14, fontWeight: 700 }}>
+          Este elemento ya tiene {existentes.length} {existentes.length === 1 ? 'criterio' : 'criterios'}; los nuevos se agregan desde el N°{existentes.length + 1}.
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+          Estándar esperado: <span className="chip chip-pt">{total} de {PUNTAJE_OBJETIVO} pt</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: falta === 0 ? 'var(--color-success)' : falta < 0 ? 'var(--color-danger)' : 'var(--color-warning)' }}>
+            {falta === 0 ? '¡Completo!' : falta > 0 ? `Faltan ${falta} pt` : `Te pasaste por ${-falta} pt`}
+          </span>
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {existentes.map(c => (
+          <span key={c.dpl_rubricacriterioid} className="persona-chip" style={{ fontSize: 13 }}>
+            N°{c.dpl_orden} · {c.dpl_criterio || 'Sin nombre'} · {Number(c.dpl_puntajeestandar ?? 0)} pt
+          </span>
+        ))}
       </div>
     </div>
   )
