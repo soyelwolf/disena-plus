@@ -19,15 +19,16 @@ export interface TablaConfig {
   orden?: string[]
 }
 
-export const GRUPOS = ['Listas', 'Seguimiento', 'Tablas internas'] as const
+/** Folders of the Centro de datos menu, in display order (like the SharePoint site navigation). */
+export const GRUPOS = ['Cursos', 'Consignas', 'Rúbricas', 'Matriz', 'Lista de cotejo', 'Escala de valoración', 'Competencias', 'Seguimiento'] as const
 
 export const TABLAS: TablaConfig[] = [
   {
-    grupo: 'Listas', tabla: 'dpl_curso', pk: 'dpl_cursoid', titulo: 'LISTADO_CURSOS_PARA_IA', descripcion: 'Cursos y personas asignadas', etiqueta: 'dpl_nombrecurso',
+    grupo: 'Cursos', tabla: 'dpl_curso', pk: 'dpl_cursoid', titulo: 'LISTADO_CURSOS_PARA_IA', descripcion: 'Cursos y personas asignadas', etiqueta: 'dpl_nombrecurso',
     orden: ['dpl_idcursotext', 'dpl_codigocatalogo', 'dpl_nombrecurso', 'dpl_carrera', 'dpl_tipoensenanza', 'dpl_ciclo'],
   },
   {
-    grupo: 'Listas', tabla: 'dpl_unidad', pk: 'dpl_unidadid', titulo: 'UNIDADES_CURSOS_IA', descripcion: 'Unidades, logros y elementos', etiqueta: 'dpl_nombreunidad',
+    grupo: 'Cursos', tabla: 'dpl_unidad', pk: 'dpl_unidadid', titulo: 'UNIDADES_CURSOS_IA', descripcion: 'Unidades, logros y elementos', etiqueta: 'dpl_nombreunidad',
     orden: [
       'dpl_idunidadtext', 'dpl_numerounidad', 'dpl_nombreunidad', 'dpl_logroespecifico', 'dpl_temasesiones', 'dpl_realizado',
       'dpl_elementoasignado', 'dpl_nivelcomplejidad', 'dpl_queseevaluar', 'dpl_instrumentoevaluacion',
@@ -35,30 +36,30 @@ export const TABLAS: TablaConfig[] = [
     ],
   },
   {
-    grupo: 'Listas', tabla: 'dpl_sesion', pk: 'dpl_sesionid', titulo: 'SESIONES_CURSOS_IA', descripcion: 'Sesiones del sílabo', etiqueta: 'dpl_elemento',
+    grupo: 'Cursos', tabla: 'dpl_sesion', pk: 'dpl_sesionid', titulo: 'SESIONES_CURSOS_IA', descripcion: 'Sesiones del sílabo', etiqueta: 'dpl_elemento',
     orden: [
       'dpl_unidadid', 'dpl_idsesiontext', 'dpl_herramientaia', 'dpl_semana', 'dpl_numerosesion', 'dpl_tiemposesionmin', 'dpl_tema',
       'dpl_actividad', 'dpl_elemento', 'dpl_abreviatura', 'dpl_observacion', 'dpl_peso', 'dpl_tipoobservacion', 'dpl_tieneelemento', 'dpl_realizado',
     ],
   },
-  { grupo: 'Listas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas', etiqueta: 'dpl_idconsignatext', orden: ['dpl_idconsignatext', 'dpl_instrumento'] },
-  { grupo: 'Listas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Criterios de las rúbricas', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
-  { grupo: 'Listas', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'REL_RUBRICA_COMPETENCIAS', descripcion: 'Competencias elegidas por criterio' },
-  { grupo: 'Listas', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz' },
-  { grupo: 'Listas', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'CONSOLIDADO_LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo' },
-  { grupo: 'Listas', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'CONSOLIDADO_ESCALA_DE_VALORACION', descripcion: 'Indicadores de la escala' },
-  { grupo: 'Listas', tabla: 'dpl_taxonomiaitem', pk: 'dpl_taxonomiaitemid', titulo: 'TAXONOMIA_MATRIZ_SN_RUBRICA', descripcion: 'Catálogo de taxonomía' },
-  { grupo: 'Listas', tabla: 'dpl_competencia', pk: 'dpl_competenciaid', titulo: 'COMPETENCIAS_PARA_MAPEO', descripcion: 'Catálogo de competencias', etiqueta: 'dpl_competencia' },
-  { grupo: 'Listas', tabla: 'dpl_programa', pk: 'dpl_programaid', titulo: 'PROGRAMAS', descripcion: 'Catálogo de programas', etiqueta: 'dpl_nombre' },
-  { grupo: 'Listas', tabla: 'dpl_cursoprograma', pk: 'dpl_cursoprogramaid', titulo: 'MAPEO_PROGRAMAS', descripcion: 'Programas de cada curso' },
+  { grupo: 'Consignas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas', etiqueta: 'dpl_idconsignatext', orden: ['dpl_idconsignatext', 'dpl_instrumento'] },
+  { grupo: 'Rúbricas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Criterios de las rúbricas', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
+  { grupo: 'Rúbricas', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'REL_RUBRICA_COMPETENCIAS', descripcion: 'Competencias elegidas por criterio' },
+  { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz' },
+  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'CONSOLIDADO_LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo' },
+  { grupo: 'Escala de valoración', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'CONSOLIDADO_ESCALA_DE_VALORACION', descripcion: 'Indicadores de la escala' },
+  { grupo: 'Matriz', tabla: 'dpl_taxonomiaitem', pk: 'dpl_taxonomiaitemid', titulo: 'TAXONOMIA_MATRIZ_SN_RUBRICA', descripcion: 'Catálogo de taxonomía' },
+  { grupo: 'Competencias', tabla: 'dpl_competencia', pk: 'dpl_competenciaid', titulo: 'COMPETENCIAS_PARA_MAPEO', descripcion: 'Catálogo de competencias', etiqueta: 'dpl_competencia' },
+  { grupo: 'Competencias', tabla: 'dpl_programa', pk: 'dpl_programaid', titulo: 'PROGRAMAS', descripcion: 'Catálogo de programas', etiqueta: 'dpl_nombre' },
+  { grupo: 'Competencias', tabla: 'dpl_cursoprograma', pk: 'dpl_cursoprogramaid', titulo: 'MAPEO_PROGRAMAS', descripcion: 'Programas de cada curso' },
   { grupo: 'Seguimiento', tabla: 'dpl_procesocurso', pk: 'dpl_procesocursoid', titulo: 'ESTADO_PROCESO', descripcion: 'Estado de aprobación por curso' },
   { grupo: 'Seguimiento', tabla: 'dpl_procesoevento', pk: 'dpl_procesoeventoid', titulo: 'HISTORIAL_APROBACIONES', descripcion: 'Quién finalizó, aprobó o devolvió' },
   { grupo: 'Seguimiento', tabla: 'dpl_comentario', pk: 'dpl_comentarioid', titulo: 'COMENTARIOS', descripcion: 'Comentarios de los aprobadores' },
-  { grupo: 'Tablas internas', tabla: 'dpl_cursoprogramacompetencia', pk: 'dpl_cursoprogramacompetenciaid', titulo: 'Competencias por curso y programa', descripcion: 'Alimenta las competencias de Rúbricas' },
-  { grupo: 'Tablas internas', tabla: 'dpl_rubrica', pk: 'dpl_rubricaid', titulo: 'Rúbricas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
-  { grupo: 'Tablas internas', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'Matrices (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
-  { grupo: 'Tablas internas', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'Listas de cotejo (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
-  { grupo: 'Tablas internas', tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid', titulo: 'Escalas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Competencias', tabla: 'dpl_cursoprogramacompetencia', pk: 'dpl_cursoprogramacompetenciaid', titulo: 'Competencias por curso y programa', descripcion: 'Alimenta las competencias de Rúbricas' },
+  { grupo: 'Rúbricas', tabla: 'dpl_rubrica', pk: 'dpl_rubricaid', titulo: 'Rúbricas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Matriz', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'Matrices (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'Listas de cotejo (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Escala de valoración', tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid', titulo: 'Escalas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
 ]
 
 /** Column headers — SharePoint names where the column came from a SharePoint list. */

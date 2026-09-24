@@ -555,3 +555,9 @@ fieldset:disabled .radio { cursor: default; opacity: 0.8; }
 .datos-contraer:hover { background: var(--color-primary-light); }
 .datos-menu-contraido { width: 52px; align-items: center; padding: 8px 4px; gap: 12px; }
 .datos-vertical { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 12px; font-weight: 700; color: var(--color-text-muted); max-height: 60vh; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.datos-carpeta { display: flex; align-items: center; gap: 6px; border: none; background: transparent; font: inherit; font-size: 13px; font-weight: 700; color: var(--color-text); padding: 9px 8px; margin-top: 4px; border-radius: 6px; text-align: left; }
+.datos-carpeta:hover { background: var(--color-primary-light); }
+.datos-carpeta.actual { color: var(--color-primary); }
+.datos-carpeta small { font-size: 11px; font-weight: 700; color: var(--color-text-muted); background: #eef1f3; border-radius: 999px; padding: 1px 7px; }
+.datos-carpeta + .datos-item, .datos-carpeta ~ .datos-item { margin-left: 14px; }

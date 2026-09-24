@@ -41,6 +41,20 @@ export default function CentroDatos() {
       return !v
     })
   const actual = vista === USUARIOS ? 'Usuarios' : TABLAS.find(t => t.tabla === vista)?.titulo
+  const carpetaDe = (v: string) => TABLAS.find(t => t.tabla === v)?.grupo
+  // Folders like the SharePoint site navigation: open on demand, the current one always open.
+  const [abiertas, setAbiertas] = useState<Set<string>>(() => new Set(['Cursos']))
+  const alternarCarpeta = (g: string) =>
+    setAbiertas(prev => {
+      const next = new Set(prev)
+      if (next.has(g)) next.delete(g)
+      else next.add(g)
+      return next
+    })
+  useEffect(() => {
+    const g = carpetaDe(vista)
+    if (g) setAbiertas(prev => (prev.has(g) ? prev : new Set([...prev, g])))
+  }, [vista])
   useEffect(() => {
     document.title = 'Centro de datos — Diseña+'
   }, [])
@@ -75,8 +89,16 @@ export default function CentroDatos() {
           </button>
           {GRUPOS.map(g => (
             <div key={g} style={{ display: 'flex', flexDirection: 'column' }}>
-              <span className="datos-grupo">{g}</span>
-              {TABLAS.filter(t => t.grupo === g).map(t => (
+              <button
+                className={`datos-carpeta${carpetaDe(vista) === g ? ' actual' : ''}`}
+                aria-expanded={abiertas.has(g)}
+                onClick={() => alternarCarpeta(g)}
+              >
+                <Icon name={abiertas.has(g) ? 'chevronDown' : 'chevronRight'} size={15} strokeWidth={2.2} />
+                <span style={{ flex: 1 }}>{g}</span>
+                <small>{TABLAS.filter(t => t.grupo === g).length}</small>
+              </button>
+              {abiertas.has(g) && TABLAS.filter(t => t.grupo === g).map(t => (
                 <button key={t.tabla} className={`datos-item${vista === t.tabla ? ' active' : ''}`} onClick={() => setVista(t.tabla)}>
                   <span>{t.titulo}</span>
                   <small>{t.descripcion}</small>
