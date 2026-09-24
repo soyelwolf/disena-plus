@@ -443,7 +443,7 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, comentar
       <div className="row-between" style={{ paddingBottom: 18, borderBottom: '1px solid var(--color-border)' }}>
         <h2 style={{ fontSize: 20, fontWeight: 700 }}>Consigna: {el.nombre}</h2>
         <div style={{ display: 'flex', gap: 10 }}>
-          {consignaId && comentarios.some(k => k.entidadId === consignaId) ? (
+          {consignaId ? (
             <button className="btn btn-outline" style={{ height: 42 }} onClick={() => onComentarios()}>
               <Icon name="comment" size={16} />{pendientes ? `Comentarios pendientes (${pendientes})` : 'Comentarios'}
             </button>

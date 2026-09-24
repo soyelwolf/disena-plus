@@ -271,11 +271,11 @@ export default function RubricasPage() {
           <Icon name="info" size={16} />{motivo}
         </div>
       )}
-      {comentarios.length > 0 && (
+      {datos.elementos.length > 0 && (
         <div className="alert-banner alert-info" style={{ padding: '10px 14px' }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Icon name="comment" size={16} />
-            {pendientesRubrica > 0 ? `Hay ${pendientesRubrica} ${pendientesRubrica === 1 ? 'comentario pendiente' : 'comentarios pendientes'} en la rúbrica` : 'Todos los comentarios de la rúbrica están resueltos'}
+            {pendientesRubrica > 0 ? `Hay ${pendientesRubrica} ${pendientesRubrica === 1 ? 'comentario pendiente' : 'comentarios pendientes'} en la rúbrica` : comentarios.length > 0 ? 'Todos los comentarios de la rúbrica están resueltos' : 'Aún no hay comentarios del Monitor EA ni DDA en la rúbrica'}
           </span>
           <button className="link-btn" onClick={() => setFiltro({})}>Ver comentarios</button>
         </div>

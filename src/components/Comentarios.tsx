@@ -300,7 +300,7 @@ export function PanelComentarios(props: PanelProps) {
 
         {visibles.length === 0 && (
           <p className="coment-vacio">
-            {raices.length === 0 ? (puedeComentar && unItem ? 'Aún no hay comentarios. Escribe el primero abajo o selecciona un texto del ítem para citarlo.' : 'Aún no hay comentarios.') : 'No hay comentarios pendientes.'}
+            {raices.length === 0 ? (puedeComentar && unItem ? 'Aún no hay comentarios. Escribe el primero abajo o selecciona un texto del ítem para citarlo.' : 'Aún no hay comentarios. El Monitor EA y DDA los dejan en cada ítem (ícono de comentario junto al campo); aquí podrás leerlos y responderlos.') : 'No hay comentarios pendientes.'}
           </p>
         )}
 
