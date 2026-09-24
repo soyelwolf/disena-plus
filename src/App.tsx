@@ -10,16 +10,25 @@ import SeccionIndice from './pages/SeccionIndice'
 import PanelAdmin from './pages/PanelAdmin'
 import ElementoDetalle from './pages/detalle/ElementoDetalle'
 import Proximamente from './pages/Proximamente'
+import ConsignasPage from './pages/ConsignasPage'
+import RubricasPage from './pages/RubricasPage'
+import CriterioForm from './pages/CriterioForm'
+import { ToastProvider } from './components/ui'
 
 export default function App() {
   return (
     <AuthProvider>
+      <ToastProvider>
       <Layout>
         <Routes>
           <Route path="/" element={<Login />} />
           <Route path="/home" element={<Navigate to="/cursos" replace />} />
           <Route path="/cursos" element={<ProtectedRoute><ListadoCursos /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId" element={<ProtectedRoute><HubCurso /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/consignas" element={<ProtectedRoute><ConsignasPage /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/rubricas" element={<ProtectedRoute><RubricasPage /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/rubricas/:sesionId/criterio" element={<ProtectedRoute><CriterioForm /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/rubricas/:sesionId/criterio/:criterioId" element={<ProtectedRoute><CriterioForm /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/admin" element={<ProtectedRoute><PanelAdmin /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/:seccion" element={<ProtectedRoute><SeccionIndice /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/:seccion/:sesionId" element={<ProtectedRoute><ElementoDetalle /></ProtectedRoute>} />
@@ -46,6 +55,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/cursos" replace />} />
         </Routes>
       </Layout>
+      </ToastProvider>
     </AuthProvider>
   )
 }

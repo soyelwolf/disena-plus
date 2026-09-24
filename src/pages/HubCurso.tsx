@@ -1,82 +1,184 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useCurso } from '../shared/hooks/useCursos'
-import { MOCK_CURSO, MOCK_CURSO_ID } from '../shared/mockData'
-import type { Curso } from '../types/curso'
+import Icon, { type IconName } from '../components/Icon'
+import Aprobaciones from '../components/Aprobaciones'
+import { Breadcrumbs, Cargando, CursoHeader, ErrorPanel, ProgressBar } from '../components/ui'
+import {
+  ESTADO_LABEL,
+  getRubricasCurso,
+  problemaElemento,
+  validarConsigna,
+  type RubricasCurso,
+} from '../shared/academico'
+import { useContenidoAcademico } from '../shared/hooks/useContenidoAcademico'
 
-const SECCIONES = [
-  { key: 'consignas', label: 'Consignas', icon: '📝', permKey: 'permiteConsignas' as const },
-  { key: 'rubricas', label: 'Rúbricas', icon: '📊', permKey: 'permiteRubricas' as const },
-  { key: 'matriz', label: 'Matriz', icon: '🧮', permKey: 'permiteMatrizSN' as const },
-  { key: 'lista-cotejo', label: 'Lista de Cotejo', icon: '✅', permKey: 'permiteListaCotejo' as const },
-  { key: 'escala', label: 'Escala de Valoración', icon: '📏', permKey: 'permiteEscala' as const },
-]
+interface Tarjeta {
+  titulo: string
+  subtitulo: string
+  to?: string
+  avance?: number
+  detalle?: string
+  estado: 'activo' | 'bloqueado' | 'proximamente' | 'no_aplica'
+  icon?: IconName
+}
 
 export default function HubCurso() {
   const { cursoId } = useParams<{ cursoId: string }>()
-  const isMock = cursoId === MOCK_CURSO_ID
-  const { curso: fetchedCurso, isLoading, error } = useCurso(isMock ? undefined : cursoId)
-  const curso: Curso | null = isMock ? MOCK_CURSO : fetchedCurso
-  const usingMock = isMock || !!error
+  const { ctx, proceso, error, loading, recargar } = useContenidoAcademico(cursoId)
+  const [rubricas, setRubricas] = useState<RubricasCurso | null>(null)
+  const [verFlujo, setVerFlujo] = useState(false)
 
   useEffect(() => {
-    document.title = curso ? `${curso.nombre} — Diseña+` : 'Curso — Diseña+'
-  }, [curso])
+    document.title = ctx ? `${ctx.nombre} — Diseña+` : 'Curso — Diseña+'
+    if (ctx) getRubricasCurso(ctx).then(setRubricas).catch(() => setRubricas(null))
+  }, [ctx])
+
+  if (loading) return <Cargando texto="Cargando curso" />
+  if (error || !ctx || !proceso) return <ErrorPanel mensaje={error ?? 'Curso no encontrado.'} onRetry={recargar} />
+
+  const total = ctx.elementos.length
+  const consignasOk = ctx.elementos.filter(e => validarConsigna(e.consigna).completa).length
+  const rubricaEls = rubricas?.elementos ?? []
+  const rubricasOk = rubricaEls.filter(r => problemaElemento(r) === null).length
+
+  const academico: Tarjeta[] = [
+    {
+      titulo: 'Consignas',
+      subtitulo: 'Instrucciones para tu tarea',
+      to: `/cursos/${ctx.id}/consignas`,
+      avance: total ? (consignasOk / total) * 100 : 0,
+      detalle: proceso.finalizado.consignas ? 'Edición finalizada' : `${consignasOk} de ${total} completadas`,
+      estado: ctx.permite.consignas || total > 0 ? 'activo' : 'bloqueado',
+    },
+    {
+      titulo: 'Rúbricas',
+      subtitulo: '¿Cómo se evaluará tu trabajo?',
+      to: `/cursos/${ctx.id}/rubricas`,
+      avance: rubricaEls.length ? (rubricasOk / rubricaEls.length) * 100 : 0,
+      detalle: !rubricas
+        ? 'Calculando…'
+        : proceso.finalizado.rubricas
+          ? 'Edición finalizada'
+          : `${rubricasOk} de ${rubricaEls.length} elementos completos`,
+      estado: rubricas && rubricaEls.length === 0 ? 'no_aplica' : 'activo',
+    },
+    { titulo: 'Matriz', subtitulo: 'Cuadro detallado de puntajes', estado: ctx.permite.matriz ? 'proximamente' : 'bloqueado' },
+    { titulo: 'Lista de cotejo', subtitulo: 'Requisitos mínimos a cumplir', estado: ctx.permite.lista ? 'proximamente' : 'bloqueado' },
+    { titulo: 'Escala de valoración', subtitulo: 'Medición del nivel alcanzado', estado: ctx.permite.escala ? 'proximamente' : 'bloqueado' },
+  ]
+
+  const instruccional: Tarjeta[] = [
+    { titulo: 'Sesiones de clase', subtitulo: 'Contenido y agenda del día', estado: 'proximamente' },
+    { titulo: 'PPT con sesiones', subtitulo: 'Diapositivas de apoyo visual', estado: 'proximamente' },
+    { titulo: 'PPT sin sesiones', subtitulo: 'Diapositivas de apoyo visual', estado: 'proximamente' },
+  ]
+
+  const activas = academico.filter(t => t.estado === 'activo')
+  const avanceProceso = activas.length ? activas.reduce((s, t) => s + (t.avance ?? 0), 0) / activas.length : 0
 
   return (
-    <div className="container" style={{ paddingTop: 'var(--space-5)', paddingBottom: 'var(--space-8)' }}>
-      <Link to="/cursos" className="muted" style={{ fontSize: '0.85rem' }}>← Volver al listado</Link>
+    <div className="page">
+      <Breadcrumbs items={[{ label: 'Cursos', to: '/cursos' }, { label: ctx.nombre }]} />
+      <CursoHeader
+        titulo={ctx.nombre}
+        tipoEnsenanza={ctx.tipoEnsenanza}
+        programas={ctx.programas}
+        acciones={
+          <button className="link-btn" style={{ fontSize: 15 }} onClick={() => setVerFlujo(true)}>
+            Flujo de trabajo <Icon name="eye" size={18} />
+          </button>
+        }
+      />
 
-      {isLoading && !isMock && <p className="muted" style={{ marginTop: 'var(--space-3)' }}>Cargando curso…</p>}
-
-      {(curso ?? (error && MOCK_CURSO)) && (
-        <>
-          <div className="card animate-in row-between" style={{ padding: 'var(--space-4)', margin: 'var(--space-3) 0 var(--space-5)' }}>
-            <div>
-              <p className="badge badge-muted" style={{ marginBottom: 'var(--space-2)' }}>Curso seleccionado</p>
-              <h1 style={{ fontSize: '1.4rem' }}>{(curso ?? MOCK_CURSO).nombre}</h1>
-              <p className="mono muted" style={{ fontSize: '0.85rem', marginTop: 'var(--space-1)' }}>
-                {(curso ?? MOCK_CURSO).codigoCatalogo} · {(curso ?? MOCK_CURSO).tipoEnsenanza} · {(curso ?? MOCK_CURSO).carrera}
-              </p>
-            </div>
-            {usingMock && <span className="badge badge-warning">Datos de ejemplo (local)</span>}
-          </div>
-
-          <h2 style={{ fontSize: '1.1rem', marginBottom: 'var(--space-3)' }}>Selecciona el proceso a construir</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 'var(--space-3)', marginBottom: 'var(--space-5)' }}>
-            {SECCIONES.map(s => {
-              const habilitado = (curso ?? MOCK_CURSO)[s.permKey]
-              const content = (
-                <>
-                  <span style={{ fontSize: '1.5rem' }}>{s.icon}</span>
-                  <span style={{ fontFamily: 'var(--font-heading)', fontWeight: 700 }}>{s.label}</span>
-                  <span className={`badge ${habilitado ? 'badge-success' : 'badge-muted'}`}>
-                    {habilitado ? 'Activado' : 'No asignado'}
-                  </span>
-                </>
-              )
-              return habilitado ? (
-                <Link
-                  key={s.key}
-                  to={`/cursos/${cursoId}/${s.key}`}
-                  className="card card-interactive animate-in stack"
-                  style={{ padding: 'var(--space-3)' }}
-                >
-                  {content}
-                </Link>
-              ) : (
-                <div key={s.key} className="card animate-in stack" style={{ padding: 'var(--space-3)', opacity: 0.6 }}>
-                  {content}
-                </div>
-              )
-            })}
-          </div>
-
-          <Link to={`/cursos/${cursoId}/admin`} className="btn btn-ghost animate-in">
-            ⚙️ Panel de Control Administrativo
-          </Link>
-        </>
+      {!proceso.disponible && (
+        <div className="alert-banner alert-warn" style={{ padding: '12px 14px' }}>
+          <Icon name="info" size={18} />
+          <span>
+            Falta activar el flujo de aprobación en la base de datos (script <b>supabase/schema-flujo.sql</b>). Puedes
+            editar normalmente; «Finalizar edición» y las aprobaciones se activan al ejecutarlo.
+          </span>
+        </div>
       )}
+
+      <div className="panel animate-in" style={{ padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 16, border: '1px solid var(--color-border)' }}>
+        <span className="hub-icon"><Icon name="target" size={20} /></span>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>
+            Etapa previa · Sílabo
+          </span>
+          <span style={{ fontSize: 15 }}>
+            <b>Mapeo de competencias</b> — metas de aprendizaje del curso, base para todo el diseño
+          </span>
+        </div>
+        <span className="chip" style={{ background: '#eef0f1', color: '#5b6168' }}>Próximamente</span>
+      </div>
+
+      <div className="hub-grid">
+        <section className="panel hub-section animate-in">
+          <SeccionHead
+            numero={1}
+            titulo="Diseño de contenido académico"
+            subtitulo="Consignas e instrumentos de evaluación"
+            chip={
+              <span className={`chip ${proceso.estado === 'aprobado' ? 'chip-aprobado' : proceso.estado === 'en_edicion' ? 'chip-edicion' : 'chip-revision'}`}>
+                {ESTADO_LABEL[proceso.estado]}
+              </span>
+            }
+          />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1 }}><ProgressBar value={avanceProceso} /></div>
+            <span style={{ fontSize: 13, fontWeight: 700 }}>{Math.round(avanceProceso)}%</span>
+          </div>
+          <div className="hub-cards">{academico.map(t => <TarjetaProceso key={t.titulo} t={t} />)}</div>
+        </section>
+
+        <section className="panel hub-section animate-in" style={{ opacity: 0.85 }}>
+          <SeccionHead
+            numero={2}
+            titulo="Contenido instruccional"
+            subtitulo="Sesiones de clase y presentaciones PPT"
+            chip={<span className="chip" style={{ background: '#eef0f1', color: '#5b6168' }}>Próximamente</span>}
+          />
+          <div className="hub-cards">{instruccional.map(t => <TarjetaProceso key={t.titulo} t={t} />)}</div>
+        </section>
+      </div>
+
+      <Aprobaciones open={verFlujo} onClose={() => setVerFlujo(false)} cursoId={ctx.id} proceso={proceso} onCambio={recargar} />
     </div>
   )
+}
+
+function SeccionHead(props: { numero: number; titulo: string; subtitulo: string; chip: React.ReactNode }) {
+  return (
+    <div className="row-between" style={{ alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 14 }}>
+        <span className="hub-num">{props.numero}</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 700 }}>{props.titulo}</h2>
+          <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>{props.subtitulo}</span>
+        </div>
+      </div>
+      {props.chip}
+    </div>
+  )
+}
+
+function TarjetaProceso({ t }: { t: Tarjeta }) {
+  const contenido = (
+    <>
+      <span style={{ fontSize: 16, fontWeight: 700 }}>{t.titulo}</span>
+      <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.subtitulo}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+        {t.estado === 'activo' && <><Icon name="pencil" size={13} strokeWidth={2} />{t.detalle}</>}
+        {t.estado === 'bloqueado' && <><Icon name="lock" size={13} strokeWidth={2} />Bloqueado</>}
+        {t.estado === 'proximamente' && <><Icon name="clock" size={13} strokeWidth={2} />Próximamente</>}
+        {t.estado === 'no_aplica' && <>Ningún elemento usa este instrumento</>}
+      </span>
+      <ProgressBar value={t.avance ?? 0} muted={t.estado !== 'activo'} />
+    </>
+  )
+  if (t.estado === 'activo' && t.to) {
+    return <Link to={t.to} className="hub-card">{contenido}</Link>
+  }
+  return <div className="hub-card hub-card-off">{contenido}</div>
 }
