@@ -10,6 +10,7 @@ import {
   LIMITES,
   NIVELES,
   crearCriterios,
+  REGLAS_RUBRICA,
   advertenciasRubrica,
   guardarRubricaCompleta,
   getComentarios,
@@ -53,9 +54,16 @@ function erroresFila(f: Fila): Partial<Record<keyof CriterioCampos, string>> {
     else if (longitud(f[n.texto]) > LIMITES.criterioTexto) e[n.texto] = 'Exceso de caracteres'
     const p = f[n.puntaje].trim()
     if (p === '') e[n.puntaje] = 'Completar información'
-    else if (!(Number(p) >= 0)) e[n.puntaje] = 'Ingresa un número válido'
+    else if (!/^\d+(\.\d+)?$/.test(p)) e[n.puntaje] = 'Solo números (entero o decimal)'
   }
   return e
+}
+
+/** Scores accept only digits and one decimal point (a comma counts as the point). */
+function soloNumero(v: string): string {
+  const limpio = v.replace(/,/g, '.').replace(/[^\d.]/g, '')
+  const i = limpio.indexOf('.')
+  return i < 0 ? limpio : limpio.slice(0, i + 1) + limpio.slice(i + 1).replace(/\./g, '')
 }
 
 function aCampos(f: Fila): CriterioCampos {
@@ -228,9 +236,13 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
         ))}
       </div>
 
-      <button className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 14, padding: '8px 10px' }} onClick={agregarFila}>
-        <Icon name="plus" size={18} strokeWidth={2} />Agregar otro criterio
-      </button>
+      {(editando ? filas.length : existentes.length + filas.length) < REGLAS_RUBRICA.maxCriterios ? (
+        <button className="link-btn" style={{ alignSelf: 'flex-start', fontSize: 14, padding: '8px 10px' }} onClick={agregarFila}>
+          <Icon name="plus" size={18} strokeWidth={2} />Agregar otro criterio
+        </button>
+      ) : (
+        <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Llegaste al máximo de {REGLAS_RUBRICA.maxCriterios} criterios por elemento.</span>
+      )}
 
       <div className="form-footer">
         <button className="btn btn-outline" style={{ height: 44, padding: '0 24px' }} onClick={() => (sucio ? setConfirmarCancelar(true) : navigate(volver))}>
@@ -394,13 +406,11 @@ function FilaCriterio({ numero, fila, errores, onChange, onEliminar, pendientes 
                   <label className="field-label" style={{ marginTop: 10, marginBottom: 6 }}>
                     Puntaje
                     <input
-                      type="number"
-                      min={0}
-                      step="0.5"
+                      type="text"
                       inputMode="decimal"
-                      placeholder="Ingresar puntaje"
+                      placeholder="Ej. 5 o 4.5"
                       value={fila[n.puntaje]}
-                      onChange={e => onChange(n.puntaje, e.target.value)}
+                      onChange={e => onChange(n.puntaje, soloNumero(e.target.value))}
                       className={errores[n.puntaje] ? 'has-error' : ''}
                       style={{ marginTop: 6, height: 40, fontWeight: 400 }}
                       aria-label={`Puntaje ${n.label}`}

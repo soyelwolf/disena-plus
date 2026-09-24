@@ -17,6 +17,7 @@ import {
   habilitarEdicion,
   instrumentosRequeridos,
   marcarCompetencia,
+  REGLAS_RUBRICA,
   advertenciasRubrica,
   problemaElemento,
   totalEstandar,
@@ -301,19 +302,15 @@ export default function RubricasPage() {
 
           {(() => {
             // Always visible while working; after "Finalizar" the red banner below takes over the 20 pt rule.
-            const avisos = advertenciasRubrica(r.criterios).filter((_, k) => !(intentoFinalizar && problemas[i] === 'suma' && k === 0 && totalEstandar(r.criterios) !== PUNTAJE_OBJETIVO))
+            const avisos = advertenciasRubrica(r.criterios)
             return avisos.length > 0 ? (
-              <div className="alert-banner alert-warn" style={{ justifyContent: 'flex-start', alignItems: 'flex-start', padding: '10px 14px' }}>
+              <div className={`alert-banner ${intentoFinalizar ? 'alert-danger' : 'alert-warn'}`} style={{ justifyContent: 'flex-start', alignItems: 'flex-start', padding: '10px 14px' }}>
                 <Icon name="alert" size={15} />
                 <span style={{ display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left' }}>{avisos.map(a => <span key={a}>{a}</span>)}</span>
               </div>
             ) : null
           })()}
-          {intentoFinalizar && problemas[i] === 'suma' && (
-            <div className="alert-banner alert-danger">
-              <Icon name="alert" size={15} />La suma del estándar esperado de los criterios, en cada elemento de evaluación debe ser igual a {PUNTAJE_OBJETIVO} pts.
-            </div>
-          )}
+
 
           {r.criterios.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
@@ -354,10 +351,14 @@ export default function RubricasPage() {
 
           {puede && (
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <AgregarCriterio
-                onManual={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/criterio`)}
-                onIA={() => setIaPara(r)}
-              />
+              {r.criterios.length < REGLAS_RUBRICA.maxCriterios ? (
+                <AgregarCriterio
+                  onManual={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/criterio`)}
+                  onIA={() => setIaPara(r)}
+                />
+              ) : (
+                <span style={{ fontSize: 13, color: 'var(--color-text-muted)', alignSelf: 'center' }}>Llegaste al máximo de {REGLAS_RUBRICA.maxCriterios} criterios.</span>
+              )}
               {r.criterios.length > 0 && (
                 <button className="btn btn-outline" style={{ height: 38 }} onClick={() => navigate(`/cursos/${ctx.id}/rubricas/${r.elemento.sesionId}/editar`)}>
                   <Icon name="pencil" size={16} />Editar rúbrica completa
@@ -380,7 +381,9 @@ export default function RubricasPage() {
         onClose={() => setModal(null)}
         actions={<button className="btn btn-primary" onClick={() => setModal(null)}>Entendido</button>}
       >
-        La suma del estándar esperado de los criterios, en cada elemento de evaluación debe ser igual a {PUNTAJE_OBJETIVO} pts.
+        Cada elemento debe cumplir las reglas de la rúbrica: entre {REGLAS_RUBRICA.minCriterios} y {REGLAS_RUBRICA.maxCriterios} criterios, estándar esperado que sume {PUNTAJE_OBJETIVO} pt,
+        Inicial que sume entre {REGLAS_RUBRICA.inicialMin} y {REGLAS_RUBRICA.inicialMax} pt, y en cada criterio puntajes completos que bajen de nivel en nivel sin repetirse.
+        Revisa los avisos en rojo de cada elemento.
       </Modal>
       <Modal
         open={modal === 'confirmar'}

@@ -94,6 +94,7 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 - Consignas: instrumento Rúbrica / Matriz (con o sin rúbrica) / Lista de cotejo / Escala (normal o
   "cursos DDA administración"). Límites: Indicación general 2000, Indicaciones específicas 10000,
   Recomendaciones 2000, Anexo 15000 (en `LIMITES`, `academico.ts`).
+- Reglas de rúbrica (`REGLAS_RUBRICA`, `advertenciasRubrica`): 4 a 10 criterios; estándar esperado suma 20; Inicial suma entre 2 y 10; puntajes solo números (entero o decimal), completos, bajando de nivel en nivel sin repetirse (6-5-3-1). Son avisos al trabajar y requisito para Finalizar.
 - Rúbrica: **una sola por elemento**, idéntica en todos los programas; por programa solo cambian
   las competencias marcadas. En cada elemento la suma de "Estándar esperado" = **20**. Las alertas
   aparecen solo tras pulsar "Finalizar edición general".

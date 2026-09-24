@@ -414,33 +414,52 @@ export function totalEstandar(criterios: Array<Pick<CriterioRow, 'dpl_puntajeest
   return criterios.reduce((s, c) => s + (Number(c.dpl_puntajeestandar) || 0), 0)
 }
 
-export type ProblemaRubrica = 'sin_criterios' | 'suma'
+export type ProblemaRubrica = 'sin_criterios' | 'suma' | 'reglas'
 
 export function problemaElemento(r: RubricaElemento): ProblemaRubrica | null {
   if (r.criterios.length === 0) return 'sin_criterios'
   if (totalEstandar(r.criterios) !== PUNTAJE_OBJETIVO) return 'suma'
+  if (advertenciasRubrica(r.criterios).length) return 'reglas'
   return null
 }
 
+/** Rubric rules (UTP). */
+export const REGLAS_RUBRICA = { minCriterios: 4, maxCriterios: 10, inicialMin: 2, inicialMax: 10 }
+
+const redondear = (n: number) => Math.round(n * 100) / 100
+
 /**
  * Rubric rules shown as warnings while the teacher works (saving is never
- * blocked; "Finalizar edición general" still requires the 20 points).
- * Criteria in screen order; numbers may be strings (form) or numbers (database).
+ * blocked; "Finalizar edición general" requires all of them).
+ * Criteria in screen order; scores may be strings (form) or numbers (database).
  */
 export function advertenciasRubrica(criterios: Array<Partial<Record<keyof CriterioCampos, unknown>>>): string[] {
-  const num = (v: unknown) => (v === null || v === undefined || String(v).trim() === '' ? null : Number(v))
+  const { minCriterios, maxCriterios, inicialMin, inicialMax } = REGLAS_RUBRICA
+  const vacio = (v: unknown) => v === null || v === undefined || String(v).trim() === ''
+  const num = (v: unknown) => (vacio(v) ? null : Number(String(v).replace(',', '.')))
   const avisos: string[] = []
-  if (criterios.length) {
-    const total = criterios.reduce<number>((s, c) => s + (num(c.dpl_puntajeestandar) ?? 0), 0)
-    const falta = Math.round((PUNTAJE_OBJETIVO - total) * 100) / 100
-    if (falta > 0) avisos.push(`El estándar esperado suma ${total} de ${PUNTAJE_OBJETIVO} pt: ${falta === 1 ? 'falta' : 'faltan'} ${falta} pt.`)
-    else if (falta < 0) avisos.push(`El estándar esperado suma ${total} pt: te pasaste por ${-falta} pt (debe ser ${PUNTAJE_OBJETIVO}).`)
-  }
+  if (!criterios.length) return avisos
+  const n = criterios.length
+  if (n < minCriterios) avisos.push(`Tiene ${n} ${n === 1 ? 'criterio' : 'criterios'}: el mínimo es ${minCriterios}.`)
+  if (n > maxCriterios) avisos.push(`Tiene ${n} criterios: el máximo es ${maxCriterios}.`)
+
+  const suma = (k: keyof CriterioCampos) => redondear(criterios.reduce<number>((s, c) => s + (Number.isFinite(num(c[k])) ? (num(c[k]) as number) : 0), 0))
+  const total = suma('dpl_puntajeestandar')
+  const falta = redondear(PUNTAJE_OBJETIVO - total)
+  if (falta > 0) avisos.push(`El estándar esperado suma ${total} de ${PUNTAJE_OBJETIVO} pt: ${falta === 1 ? 'falta' : 'faltan'} ${falta} pt.`)
+  else if (falta < 0) avisos.push(`El estándar esperado suma ${total} pt: te pasaste por ${-falta} pt (debe ser ${PUNTAJE_OBJETIVO}).`)
+  const inicial = suma('dpl_puntajeinicial')
+  if (inicial < inicialMin || inicial > inicialMax) avisos.push(`Inicial suma ${inicial} pt: debe estar entre ${inicialMin} y ${inicialMax} pt.`)
+
   criterios.forEach((c, i) => {
-    const p = NIVELES.map(n => num(c[n.puntaje]))
-    if (p.some(x => x === null)) return
-    if (!p.every((x, k) => k === 0 || (p[k - 1] as number) > (x as number)))
-      avisos.push(`Criterio N°${i + 1}: los puntajes deben ir de mayor a menor (Estándar esperado → En proceso 2 → En proceso 1 → Inicial).`)
+    const faltan = NIVELES.filter(l => vacio(c[l.puntaje])).map(l => l.label)
+    const invalidos = NIVELES.filter(l => !vacio(c[l.puntaje]) && !(Number.isFinite(num(c[l.puntaje])) && (num(c[l.puntaje]) as number) >= 0)).map(l => l.label)
+    if (faltan.length) avisos.push(`Criterio N°${i + 1}: falta el puntaje de ${faltan.join(', ')}.`)
+    if (invalidos.length) avisos.push(`Criterio N°${i + 1}: el puntaje de ${invalidos.join(', ')} debe ser un número.`)
+    if (faltan.length || invalidos.length) return
+    const p = NIVELES.map(l => num(c[l.puntaje]) as number)
+    if (!p.every((x, k) => k === 0 || p[k - 1] > x))
+      avisos.push(`Criterio N°${i + 1}: los puntajes (${p.join(' - ')}) deben bajar de nivel en nivel y sin repetirse, por ejemplo 6 - 5 - 3 - 1.`)
   })
   return avisos
 }
