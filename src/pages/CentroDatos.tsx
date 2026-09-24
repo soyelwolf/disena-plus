@@ -10,15 +10,15 @@ import {
   REFERENCIAS,
   TABLAS,
   actualizarCelda,
-  cargarNombres,
+  cargarRelaciones,
   cargarTabla,
   columnasVisibles,
   descargarCsv,
   eliminarFila,
   etiquetaColumna,
+  type Relaciones,
   type TablaConfig,
 } from '../shared/centroDatos'
-import { supabase } from '../shared/supabaseClient'
 
 const USUARIOS = '__usuarios__'
 
@@ -40,24 +40,31 @@ export default function CentroDatos() {
         </div>
       </div>
       <div className="datos-layout">
-        <nav className="datos-menu" aria-label="Tablas">
-          <span className="datos-grupo">Administración</span>
+        <nav className="datos-menu" aria-label="Listas">
           <button className={`datos-item${vista === USUARIOS ? ' active' : ''}`} onClick={() => setVista(USUARIOS)}>
-            Usuarios y cursos asignados
+            <span>Usuarios</span>
+            <small>Personas con acceso a Diseña+</small>
           </button>
           {GRUPOS.map(g => (
             <div key={g} style={{ display: 'flex', flexDirection: 'column' }}>
               <span className="datos-grupo">{g}</span>
               {TABLAS.filter(t => t.grupo === g).map(t => (
                 <button key={t.tabla} className={`datos-item${vista === t.tabla ? ' active' : ''}`} onClick={() => setVista(t.tabla)}>
-                  {t.titulo}
+                  <span>{t.titulo}</span>
+                  <small>{t.descripcion}</small>
                 </button>
               ))}
             </div>
           ))}
         </nav>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {vista === USUARIOS ? <UsuariosPanel /> : cfg && <TablaEditor key={cfg.tabla} cfg={cfg} />}
+          {vista === USUARIOS ? (
+            <UsuariosPanel />
+          ) : cfg?.tabla === 'dpl_curso' ? (
+            <ListadoCursosEditor key={cfg.tabla} cfg={cfg} />
+          ) : (
+            cfg && <TablaEditor key={cfg.tabla} cfg={cfg} />
+          )}
         </div>
       </div>
     </div>
@@ -74,11 +81,24 @@ const COLUMNAS_RICAS = new Set([
   'dpl_definicioncriterio', 'dpl_estandaresperado', 'dpl_enproceso2', 'dpl_enproceso1', 'dpl_inicial',
 ])
 
-function TablaEditor({ cfg }: { cfg: TablaConfig }) {
+/** A computed column shown alongside the table's own ones (e.g. assigned people). */
+interface ColumnaExtra {
+  key: string
+  label: string
+  /** Insert right after this real column (default: at the start). */
+  despuesDe?: string
+  texto: (fila: Record<string, unknown>) => string
+  render: (fila: Record<string, unknown>) => React.ReactNode
+}
+
+const ID_CURSO_VIRTUAL = '__id_curso__'
+
+function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extras?: ColumnaExtra[]; version?: number }) {
   const toast = useToast()
   const [filas, setFilas] = useState<Array<Record<string, unknown>> | null>(null)
   const [existe, setExiste] = useState(true)
   const [nombres, setNombres] = useState<Map<string, string>>(new Map())
+  const [rel, setRel] = useState<Relaciones | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [limite, setLimite] = useState(PAGINA)
@@ -88,10 +108,11 @@ function TablaEditor({ cfg }: { cfg: TablaConfig }) {
   const cargar = useCallback(async () => {
     setError(null)
     try {
-      const [t, n] = await Promise.all([cargarTabla(cfg), cargarNombres()])
+      const [t, r] = await Promise.all([cargarTabla(cfg), cargarRelaciones()])
       setExiste(t.existe)
       setFilas(t.filas)
-      setNombres(n)
+      setNombres(r.nombres)
+      setRel(r)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido.')
     }
@@ -100,9 +121,29 @@ function TablaEditor({ cfg }: { cfg: TablaConfig }) {
     cargar()
   }, [cargar])
 
-  const columnas = useMemo(() => (filas ? columnasVisibles(filas, cfg) : []), [filas, cfg])
+  // Every list starts with the course it belongs to (ID_CURSO), like in SharePoint.
+  const conCurso = cfg.tabla !== 'dpl_curso' && !!filas?.some(f => rel?.cursoDe(f))
+  const columnas = useMemo(() => {
+    if (!filas) return []
+    const base = columnasVisibles(filas, cfg)
+    const conExtras: string[] = conCurso ? [ID_CURSO_VIRTUAL] : []
+    const sinPos = extras.filter(e => !e.despuesDe || !base.includes(e.despuesDe)).map(e => e.key)
+    conExtras.push(...sinPos)
+    for (const c of base) {
+      conExtras.push(c)
+      conExtras.push(...extras.filter(e => e.despuesDe === c).map(e => e.key))
+    }
+    return conExtras
+  }, [filas, cfg, extras, conCurso])
+  const extraPorKey = useMemo(() => new Map(extras.map(e => [e.key, e])), [extras])
   const texto = useCallback(
     (f: Record<string, unknown>, c: string): string => {
+      if (c === ID_CURSO_VIRTUAL) {
+        const id = rel?.cursoDe(f)
+        return id ? rel?.cursoTexto.get(id) ?? '' : ''
+      }
+      const extra = extraPorKey.get(c)
+      if (extra) return extra.texto(f)
       const v = f[c]
       if (v === null || v === undefined) return ''
       if (REFERENCIAS[c] && typeof v === 'string') return nombres.get(v) ?? v
@@ -110,8 +151,14 @@ function TablaEditor({ cfg }: { cfg: TablaConfig }) {
       if (Array.isArray(v)) return v.join(', ')
       return typeof v === 'string' && esHtml(v) ? textoPlano(v) : String(v)
     },
-    [nombres],
+    [nombres, rel, extraPorKey],
   )
+  const etiqueta = (c: string) => (c === ID_CURSO_VIRTUAL ? 'ID_CURSO' : extraPorKey.get(c)?.label ?? etiquetaColumna(c))
+
+  useEffect(() => {
+    // Re-read when the parent signals its extra columns changed (e.g. assignments saved).
+    if (version) cargar()
+  }, [version, cargar])
   const filtradas = useMemo(() => {
     if (!filas) return []
     const q = busqueda.trim().toLowerCase()
@@ -184,7 +231,7 @@ function TablaEditor({ cfg }: { cfg: TablaConfig }) {
         <button
           className="btn btn-outline"
           style={{ height: 44 }}
-          onClick={() => descargarCsv(cfg.titulo.replace(/\s+/g, '_').toUpperCase(), columnas, filtradas, texto)}
+          onClick={() => descargarCsv(cfg.titulo.replace(/\s+/g, '_').toUpperCase(), columnas, filtradas, texto, etiqueta)}
         >
           <Icon name="download" size={16} />Descargar Excel
         </button>
@@ -194,7 +241,7 @@ function TablaEditor({ cfg }: { cfg: TablaConfig }) {
         <table className="datos-tabla">
           <thead>
             <tr>
-              {columnas.map(c => <th key={c}>{etiquetaColumna(c)}</th>)}
+              {columnas.map(c => <th key={c}>{etiqueta(c)}</th>)}
               <th aria-label="Acciones" />
             </tr>
           </thead>
@@ -202,6 +249,9 @@ function TablaEditor({ cfg }: { cfg: TablaConfig }) {
             {filtradas.slice(0, limite).map(f => (
               <tr key={f[cfg.pk] as string}>
                 {columnas.map(c => {
+                  const extra = extraPorKey.get(c)
+                  if (extra) return <td key={c}>{extra.render(f)}</td>
+                  if (c === ID_CURSO_VIRTUAL) return <td key={c}><span className="celda" style={{ fontWeight: 700 }}>{texto(f, c)}</span></td>
                   const v = f[c]
                   if (typeof v === 'boolean')
                     return (
@@ -277,36 +327,16 @@ function TablaEditor({ cfg }: { cfg: TablaConfig }) {
 // ── Users & course assignments ───────────────────────────────────────────────
 
 const ROLES_EDITABLES = Object.keys(ROLE_LABELS) as UserRole[]
-const ROLES_CURSO: Array<{ rol: string; label: string }> = [
-  { rol: 'docente', label: 'Docente / Asesor' },
-  { rol: 'monitor_ea', label: 'Monitor EA' },
-  { rol: 'dda', label: 'DDA' },
-]
-
-interface CursoMin {
-  id: string
-  nombre: string
-  codigo: string
-  tipo: string
-}
-
 function UsuariosPanel() {
   const toast = useToast()
   const [datos, setDatos] = useState<{ tabla: boolean; usuarios: UsuarioAdmin[]; asignaciones: Asignacion[] } | null>(null)
-  const [cursos, setCursos] = useState<CursoMin[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [editando, setEditando] = useState<UsuarioAdmin | null>(null)
-  const [asignando, setAsignando] = useState<UsuarioAdmin | null>(null)
 
   const cargar = useCallback(async () => {
     try {
-      const [d, { data: cs }] = await Promise.all([
-        listarUsuarios(),
-        supabase.from('dpl_curso').select('dpl_cursoid, dpl_nombrecurso, dpl_codigocatalogo, dpl_tipoensenanza').order('dpl_nombrecurso'),
-      ])
-      setDatos(d)
-      setCursos((cs ?? []).map(c => ({ id: c.dpl_cursoid, nombre: capitalizar(c.dpl_nombrecurso), codigo: c.dpl_codigocatalogo ?? '', tipo: c.dpl_tipoensenanza ?? '' })))
+      setDatos(await listarUsuarios())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido.')
     }
@@ -387,7 +417,7 @@ function UsuariosPanel() {
                 <td>{u.correo || <span className="chip chip-edicion">Falta correo</span>}</td>
                 <td style={{ fontSize: 13 }}>{u.roles.map(r => ROLE_LABELS[r as UserRole] ?? r).join(' · ') || '—'}</td>
                 <td>
-                  <button className="link-btn" onClick={() => setAsignando(u)}>{n} {n === 1 ? 'curso' : 'cursos'} · Asignar</button>
+                  <span title="Se asignan en LISTADO_CURSOS_PARA_IA">{n} {n === 1 ? 'curso' : 'cursos'}</span>
                 </td>
                 <td>
                   <button className="btn btn-outline btn-sm" onClick={() => setEditando({ ...u, correo: u.correo ?? '' })}>Editar</button>
@@ -445,62 +475,159 @@ function UsuariosPanel() {
         )}
       </Drawer>
 
-      {asignando && (
-        <AsignarCursos
-          usuario={asignando}
-          cursos={cursos}
-          asignaciones={datos.asignaciones}
-          onClose={() => setAsignando(null)}
-          onCambio={cargar}
-        />
-      )}
     </div>
   )
 }
 
-function AsignarCursos(props: {
-  usuario: UsuarioAdmin
-  cursos: CursoMin[]
+// ── LISTADO_CURSOS_PARA_IA: courses + assigned people, like the SharePoint list ──
+
+/** The four person columns of the SharePoint list → assignment role. */
+const COLUMNAS_PERSONAS: Array<{ rol: string; label: string; rolUsuario: UserRole }> = [
+  { rol: 'asignado', label: 'Persona Asignada', rolUsuario: 'docente' },
+  { rol: 'docente', label: 'DocenteyAsesor', rolUsuario: 'docente' },
+  { rol: 'monitor_ea', label: 'DCI (Monitor EA)', rolUsuario: 'monitor_ea' },
+  { rol: 'dda', label: 'DDA', rolUsuario: 'dda' },
+]
+
+function ListadoCursosEditor({ cfg }: { cfg: TablaConfig }) {
+  const [datos, setDatos] = useState<{ tabla: boolean; usuarios: UsuarioAdmin[]; asignaciones: Asignacion[] } | null>(null)
+  const [elegir, setElegir] = useState<{ cursoId: string; curso: string; col: (typeof COLUMNAS_PERSONAS)[number] } | null>(null)
+
+  const cargar = useCallback(() => {
+    listarUsuarios().then(setDatos).catch(() => setDatos({ tabla: false, usuarios: [], asignaciones: [] }))
+  }, [])
+  useEffect(cargar, [cargar])
+
+  const extras: ColumnaExtra[] = useMemo(() => {
+    if (!datos?.tabla) return []
+    const nombre = new Map(datos.usuarios.map(u => [u.id, u.nombre]))
+    return COLUMNAS_PERSONAS.map((col, i) => {
+      const personas = (f: Record<string, unknown>) =>
+        datos.asignaciones.filter(a => a.cursoId === f[cfg.pk] && a.rol === col.rol).map(a => nombre.get(a.usuarioId) ?? '¿?')
+      return {
+        key: `__persona_${col.rol}`,
+        label: col.label,
+        despuesDe: i === 0 ? 'dpl_ciclo' : `__persona_${COLUMNAS_PERSONAS[i - 1].rol}`,
+        texto: (f: Record<string, unknown>) => personas(f).join('; '),
+        render: (f: Record<string, unknown>) => (
+          <button
+            className="celda celda-edit personas-celda"
+            title="Clic para elegir personas"
+            onClick={() => setElegir({ cursoId: f[cfg.pk] as string, curso: String(f.dpl_nombrecurso ?? ''), col })}
+          >
+            {personas(f).length ? personas(f).map(p => <span key={p} className="persona-chip">{p}</span>) : <span style={{ color: '#a1a7ad' }}>—</span>}
+          </button>
+        ),
+      }
+    })
+  }, [datos, cfg.pk])
+
+  return (
+    <>
+      {datos && !datos.tabla && (
+        <div className="alert-banner alert-warn" style={{ padding: '12px 14px', marginBottom: 14 }}>
+          <Icon name="info" size={16} />
+          Para ver y editar Persona Asignada, DocenteyAsesor, DCI y DDA, vuelve a ejecutar <b>supabase/schema-flujo.sql</b> en Supabase.
+        </div>
+      )}
+      <TablaEditor cfg={cfg} extras={extras} />
+      {elegir && datos && (
+        <ElegirPersonas
+          titulo={`${elegir.col.label} · ${capitalizar(elegir.curso)}`}
+          cursoId={elegir.cursoId}
+          rol={elegir.col.rol}
+          rolUsuario={elegir.col.rolUsuario}
+          usuarios={datos.usuarios}
+          asignaciones={datos.asignaciones}
+          onClose={() => setElegir(null)}
+          onCambio={cargar}
+        />
+      )}
+    </>
+  )
+}
+
+function ElegirPersonas(props: {
+  titulo: string
+  cursoId: string
+  rol: string
+  rolUsuario: UserRole
+  usuarios: UsuarioAdmin[]
   asignaciones: Asignacion[]
   onClose: () => void
   onCambio: () => void
 }) {
-  const { usuario, cursos, asignaciones, onClose, onCambio } = props
+  const { titulo, cursoId, rol, rolUsuario, usuarios, asignaciones, onClose, onCambio } = props
   const toast = useToast()
   const [busqueda, setBusqueda] = useState('')
-  const tiene = (cursoId: string, rol: string) => asignaciones.some(a => a.usuarioId === usuario.id && a.cursoId === cursoId && a.rol === rol)
+  const [nuevo, setNuevo] = useState<{ nombre: string; correo: string } | null>(null)
+  const elegidos = new Set(asignaciones.filter(a => a.cursoId === cursoId && a.rol === rol).map(a => a.usuarioId))
   const q = busqueda.trim().toLowerCase()
-  const lista = cursos.filter(c => !q || c.nombre.toLowerCase().includes(q) || c.codigo.toLowerCase().includes(q))
+  const lista = usuarios
+    .filter(u => u.activo && (!q || u.nombre.toLowerCase().includes(q) || (u.correo ?? '').includes(q)))
+    .sort((a, b) => Number(elegidos.has(b.id)) - Number(elegidos.has(a.id)) || a.nombre.localeCompare(b.nombre, 'es'))
 
-  const cambiar = async (cursoId: string, rol: string, on: boolean) => {
+  const cambiar = async (usuario: UsuarioAdmin, on: boolean) => {
     try {
       await cambiarAsignacion({ cursoId, usuarioId: usuario.id, rol }, on)
+      // Make sure the person also holds the role this column needs.
+      if (on && !usuario.roles.includes(rolUsuario)) await guardarUsuario({ ...usuario, roles: [...usuario.roles, rolUsuario] })
       onCambio()
     } catch (err) {
       toast(err instanceof Error ? err.message : 'No se pudo actualizar.', 'error')
     }
   }
 
+  const crear = async () => {
+    if (!nuevo?.nombre.trim()) return
+    if (nuevo.correo && !/^[^@\s]+@utp\.edu\.pe$/i.test(nuevo.correo.trim())) {
+      toast('El correo debe ser @utp.edu.pe.', 'error')
+      return
+    }
+    try {
+      const u = await guardarUsuario({ nombre: nuevo.nombre, correo: nuevo.correo, roles: [rolUsuario], activo: true })
+      await cambiarAsignacion({ cursoId, usuarioId: u.id, rol }, true)
+      setNuevo(null)
+      toast('Persona agregada y asignada')
+      onCambio()
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo agregar.', 'error')
+    }
+  }
+
   return (
-    <Drawer open onClose={onClose} title={`Cursos de ${usuario.nombre}`} footer={<button className="btn btn-primary" onClick={onClose}>Listo</button>}>
+    <Drawer open onClose={onClose} title={titulo} footer={<button className="btn btn-primary" onClick={onClose}>Listo</button>}>
       <div className="input-box">
-        <input type="search" placeholder="Buscar curso por nombre o código" value={busqueda} onChange={e => setBusqueda(e.target.value)} aria-label="Buscar curso" />
+        <input type="search" placeholder="Buscar por nombre o correo" value={busqueda} onChange={e => setBusqueda(e.target.value)} aria-label="Buscar persona" />
         <span style={{ color: 'var(--color-primary)', display: 'flex' }}><Icon name="search" size={18} strokeWidth={2} /></span>
       </div>
-      {lista.map(c => (
-        <div key={c.id} style={{ borderBottom: '1px solid var(--color-border)', paddingBottom: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <span style={{ fontSize: 14, fontWeight: 700 }}>{c.nombre}</span>
-          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{c.codigo} · {c.tipo}</span>
-          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-            {ROLES_CURSO.map(r => (
-              <label key={r.rol} className="radio">
-                <input type="checkbox" checked={tiene(c.id, r.rol)} onChange={e => cambiar(c.id, r.rol, e.target.checked)} />
-                {r.label}
-              </label>
-            ))}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {lista.map(u => (
+          <label key={u.id} className="persona-opcion">
+            <input type="checkbox" checked={elegidos.has(u.id)} onChange={e => cambiar(u, e.target.checked)} />
+            <span style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 700 }}>{u.nombre}</span>
+              <span style={{ fontSize: 12, color: u.correo ? 'var(--color-text-muted)' : 'var(--color-warning)' }}>{u.correo || 'Sin correo — complétalo en Usuarios'}</span>
+            </span>
+          </label>
+        ))}
+        {lista.length === 0 && <p style={{ color: 'var(--color-text-muted)', padding: '8px 0' }}>No hay personas con ese nombre.</p>}
+      </div>
+      {nuevo ? (
+        <div className="panel" style={{ border: '1px solid var(--color-border)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <span style={{ fontWeight: 700 }}>Nueva persona</span>
+          <input type="text" placeholder="Nombre completo" value={nuevo.nombre} onChange={e => setNuevo({ ...nuevo, nombre: e.target.value })} aria-label="Nombre completo" />
+          <input type="email" placeholder="usuario@utp.edu.pe" value={nuevo.correo} onChange={e => setNuevo({ ...nuevo, correo: e.target.value })} aria-label="Correo UTP" />
+          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+            <button className="btn btn-outline btn-sm" onClick={() => setNuevo(null)}>Cancelar</button>
+            <button className="btn btn-primary btn-sm" disabled={!nuevo.nombre.trim()} onClick={crear}>Agregar y asignar</button>
           </div>
         </div>
-      ))}
+      ) : (
+        <button className="link-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setNuevo({ nombre: busqueda, correo: '' })}>
+          <Icon name="plus" size={16} strokeWidth={2} />¿No está en la lista? Agregar persona
+        </button>
+      )}
     </Drawer>
   )
 }

@@ -1,44 +1,58 @@
 // src/shared/textoRico.ts
-// Rich text is stored as a small, safe subset of HTML (paragraphs, bold,
-// italic, underline, bullet and numbered lists). Older content migrated from
-// SharePoint is plain text with "- " / "1. " lines; it is converted on the fly
-// when shown or edited, so both formats coexist in the database.
+// Rich text is stored as a small, safe subset of HTML: paragraphs, bold,
+// italic, underline, bullet and numbered lists (nested to any depth) and
+// simple tables. Older content migrated from SharePoint is plain text with
+// "- " / "1. " lines; it is converted on the fly when shown or edited, so both
+// formats coexist in the database.
 
-const ETIQUETAS_PERMITIDAS = new Set(['P', 'BR', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'I', 'U', 'DIV'])
+const ETIQUETAS_PERMITIDAS = new Set([
+  'P', 'BR', 'UL', 'OL', 'LI', 'STRONG', 'B', 'EM', 'I', 'U', 'DIV',
+  'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH',
+])
 
-export const esHtml = (v: string): boolean => /<\/?(p|ul|ol|li|strong|b|em|i|u|br|div)\b/i.test(v)
+export const esHtml = (v: string): boolean => /<\/?(p|ul|ol|li|strong|b|em|i|u|br|div|table)\b/i.test(v)
 
 const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-/** Plain text (with "- item" / "1. item" lines) → HTML paragraphs and lists. */
+/**
+ * Plain text → HTML. "- item" / "1. item" lines become lists; leading spaces
+ * (two per level) nest them, as in the SharePoint exports.
+ */
 export function textoAHtml(texto: string): string {
   const lineas = texto.replace(/\r\n?/g, '\n').split('\n')
   const out: string[] = []
-  let lista: 'ul' | 'ol' | null = null
-  const cerrar = () => {
-    if (lista) out.push(`</${lista}>`)
-    lista = null
+  const pila: Array<'ul' | 'ol'> = []
+  const cerrarHasta = (n: number) => {
+    while (pila.length > n) out.push(`</li></${pila.pop()}>`)
   }
   for (const cruda of lineas) {
+    const sangria = Math.floor((/^\s*/.exec(cruda)?.[0].replace(/\t/g, '  ').length ?? 0) / 2)
     const linea = cruda.trim()
     const vineta = /^[-•*–]\s+(.*)$/.exec(linea)
     const numero = /^\d+[.)]\s+(.*)$/.exec(linea)
     if (vineta || numero) {
       const tipo = vineta ? 'ul' : 'ol'
-      if (lista !== tipo) {
-        cerrar()
-        out.push(`<${tipo}>`)
-        lista = tipo
+      const nivel = Math.min(sangria, pila.length) + 1
+      if (pila.length >= nivel) {
+        cerrarHasta(nivel)
+        if (pila[nivel - 1] !== tipo) {
+          cerrarHasta(nivel - 1)
+          out.push(`<${tipo}><li>`)
+          pila.push(tipo)
+        } else out.push('</li><li>')
+      } else {
+        out.push(`<${tipo}><li>`)
+        pila.push(tipo)
       }
-      out.push(`<li>${escapar((vineta ?? numero)![1])}</li>`)
+      out.push(escapar((vineta ?? numero)![1]))
     } else if (linea === '') {
-      cerrar()
+      cerrarHasta(0)
     } else {
-      cerrar()
+      cerrarHasta(0)
       out.push(`<p>${escapar(linea)}</p>`)
     }
   }
-  cerrar()
+  cerrarHasta(0)
   return out.join('')
 }
 
@@ -74,31 +88,38 @@ export function aHtml(valor: string | null | undefined): string {
   return esHtml(v) ? sanearHtml(v) : textoAHtml(v)
 }
 
-/** Any stored value → readable plain text ("- " for bullets). Used for counts, search and Excel. */
+/**
+ * Any stored value → readable plain text: "- " bullets indented two spaces per
+ * level, table rows as "a | b | c". Used for counts, search and Excel.
+ */
 export function textoPlano(valor: string | null | undefined): string {
   const v = valor ?? ''
   if (!esHtml(v) || typeof DOMParser === 'undefined') return v
   const doc = new DOMParser().parseFromString(`<div>${v}</div>`, 'text/html')
   const partes: string[] = []
-  const recorrer = (nodo: Node, prefijo = '') => {
+  const recorrer = (nodo: Node, nivel = 0) => {
     nodo.childNodes.forEach(n => {
       if (n.nodeType === Node.TEXT_NODE) {
-        const t = n.textContent ?? ''
-        if (t.trim()) partes.push(prefijo + t)
-        prefijo = ''
+        const t = (n.textContent ?? '').replace(/ /g, ' ')
+        if (t.trim()) partes.push(t)
         return
       }
       if (n.nodeType !== Node.ELEMENT_NODE) return
       const el = n as HTMLElement
-      if (el.tagName === 'LI') {
+      const tag = el.tagName
+      if (tag === 'LI') {
         const ol = el.parentElement?.tagName === 'OL'
         const i = [...(el.parentElement?.children ?? [])].indexOf(el) + 1
-        partes.push('\n' + (ol ? `${i}. ` : '- '))
-        recorrer(el)
-      } else if (['P', 'DIV', 'UL', 'OL', 'BR'].includes(el.tagName)) {
+        partes.push('\n' + '  '.repeat(Math.max(0, nivel - 1)) + (ol ? `${i}. ` : '- '))
+        recorrer(el, nivel)
+      } else if (tag === 'UL' || tag === 'OL') {
+        recorrer(el, nivel + 1)
+      } else if (tag === 'TR') {
+        partes.push('\n' + [...el.children].map(c => (c.textContent ?? '').trim()).join(' | '))
+      } else if (['P', 'DIV', 'BR', 'TABLE'].includes(tag)) {
         partes.push('\n')
-        recorrer(el)
-      } else recorrer(el)
+        recorrer(el, nivel)
+      } else recorrer(el, nivel)
     })
   }
   recorrer(doc.body.firstChild as Node)

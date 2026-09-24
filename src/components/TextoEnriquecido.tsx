@@ -1,9 +1,9 @@
 // Rich text field used everywhere content is written (consignas, criteria…):
-// bold / italic / underline, bullet and numbered lists, grows with its content
-// and counts visible characters only. Stores the safe HTML subset from
-// shared/textoRico.
+// bold / italic / underline, bullet and numbered lists nested with Tab /
+// Shift+Tab, simple tables, clean paste; grows with its content and counts
+// visible characters only. Stores the safe HTML subset from shared/textoRico.
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import Icon from './Icon'
 import { aHtml, estaVacio, longitud, sanearHtml, textoAHtml } from '../shared/textoRico'
 
@@ -24,11 +24,19 @@ interface Props {
 const COMANDOS = ['bold', 'italic', 'underline', 'insertUnorderedList', 'insertOrderedList'] as const
 type Comando = (typeof COMANDOS)[number]
 
+const TABLA_NUEVA =
+  '<table><tbody>' +
+  '<tr><th><br></th><th><br></th><th><br></th></tr>' +
+  '<tr><td><br></td><td><br></td><td><br></td></tr>' +
+  '<tr><td><br></td><td><br></td><td><br></td></tr>' +
+  '</tbody></table><p><br></p>'
+
 export default function TextoEnriquecido(props: Props) {
   const { id, label, value, onChange, max, error, readOnly, minHeight = 120, placeholder = 'Ingresa la información', compacto } = props
   const ref = useRef<HTMLDivElement>(null)
   const ultimo = useRef<string | null>(null)
   const [activos, setActivos] = useState<Set<Comando>>(new Set())
+  const [enTabla, setEnTabla] = useState(false)
   const [foco, setFoco] = useState(false)
 
   // Push the stored value into the editor only when it changes from outside
@@ -40,26 +48,113 @@ export default function TextoEnriquecido(props: Props) {
     ultimo.current = value
   }, [value, readOnly])
 
+  const celdaActual = (): HTMLTableCellElement | null => {
+    const nodo = window.getSelection()?.anchorNode
+    const el = nodo instanceof Element ? nodo : nodo?.parentElement
+    const celda = el?.closest('td, th') as HTMLTableCellElement | null
+    return celda && ref.current?.contains(celda) ? celda : null
+  }
+
+  const refrescarEstado = () => {
+    setActivos(new Set(COMANDOS.filter(c => document.queryCommandState(c))))
+    setEnTabla(!!celdaActual())
+  }
+
   useEffect(() => {
     if (!foco) return
-    const actualizar = () => setActivos(new Set(COMANDOS.filter(c => document.queryCommandState(c))))
-    document.addEventListener('selectionchange', actualizar)
-    return () => document.removeEventListener('selectionchange', actualizar)
-  }, [foco])
+    document.addEventListener('selectionchange', refrescarEstado)
+    return () => document.removeEventListener('selectionchange', refrescarEstado)
+  })
 
   const emitir = () => {
     const el = ref.current
     if (!el) return
-    const html = estaVacio(el.innerHTML) ? '' : sanearHtml(el.innerHTML)
+    const html = estaVacio(el.innerHTML) && !el.querySelector('table') ? '' : sanearHtml(el.innerHTML)
     ultimo.current = html
     onChange?.(html)
   }
 
-  const aplicar = (c: Comando | 'removeFormat') => {
+  const aplicar = (c: string, arg?: string) => {
     ref.current?.focus()
-    document.execCommand(c, false)
+    document.execCommand(c, false, arg)
     emitir()
-    setActivos(new Set(COMANDOS.filter(k => document.queryCommandState(k))))
+    refrescarEstado()
+  }
+
+  const colocarEn = (celda: Element | null) => {
+    if (!celda) return
+    const r = document.createRange()
+    r.selectNodeContents(celda)
+    r.collapse(true)
+    const sel = window.getSelection()
+    sel?.removeAllRanges()
+    sel?.addRange(r)
+  }
+
+  // ── Table operations (on the cell holding the caret) ──
+  const agregarFila = () => {
+    const celda = celdaActual()
+    const fila = celda?.closest('tr')
+    if (!fila) return
+    const nueva = document.createElement('tr')
+    for (let i = 0; i < fila.children.length; i++) nueva.appendChild(Object.assign(document.createElement('td'), { innerHTML: '<br>' }))
+    fila.after(nueva)
+    colocarEn(nueva.firstElementChild)
+    emitir()
+  }
+  const agregarColumna = () => {
+    const celda = celdaActual()
+    const tabla = celda?.closest('table')
+    if (!celda || !tabla) return
+    const idx = celda.cellIndex
+    tabla.querySelectorAll('tr').forEach(tr => {
+      const tipo = tr.children[0]?.tagName === 'TH' ? 'th' : 'td'
+      const nueva = Object.assign(document.createElement(tipo), { innerHTML: '<br>' })
+      tr.children[idx]?.after(nueva)
+    })
+    emitir()
+  }
+  const quitarFila = () => {
+    const fila = celdaActual()?.closest('tr')
+    const tabla = fila?.closest('table')
+    if (!fila || !tabla) return
+    if (tabla.querySelectorAll('tr').length <= 1) tabla.remove()
+    else fila.remove()
+    emitir()
+  }
+  const quitarColumna = () => {
+    const celda = celdaActual()
+    const tabla = celda?.closest('table')
+    if (!celda || !tabla) return
+    const idx = celda.cellIndex
+    const filas = [...tabla.querySelectorAll('tr')]
+    if ((filas[0]?.children.length ?? 0) <= 1) tabla.remove()
+    else filas.forEach(tr => tr.children[idx]?.remove())
+    emitir()
+  }
+  const quitarTabla = () => {
+    celdaActual()?.closest('table')?.remove()
+    emitir()
+    setEnTabla(false)
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Tab') return
+    e.preventDefault()
+    const celda = celdaActual()
+    if (celda) {
+      // Tab moves between cells; Tab on the last cell adds a row.
+      const celdas = [...(celda.closest('table')?.querySelectorAll('td, th') ?? [])]
+      const i = celdas.indexOf(celda)
+      if (e.shiftKey) colocarEn(celdas[i - 1] ?? celda)
+      else if (i === celdas.length - 1) agregarFila()
+      else colocarEn(celdas[i + 1])
+      return
+    }
+    const nodo = window.getSelection()?.anchorNode
+    const el = nodo instanceof Element ? nodo : nodo?.parentElement
+    if (el?.closest('li')) aplicar(e.shiftKey ? 'outdent' : 'indent')
+    else if (!e.shiftKey) aplicar('insertText', '    ')
   }
 
   const n = longitud(value)
@@ -94,6 +189,19 @@ export default function TextoEnriquecido(props: Props) {
           <Boton label="Lista numerada" activo={activos.has('insertOrderedList')} onClick={() => aplicar('insertOrderedList')}>
             <Icon name="listaNumerada" size={16} strokeWidth={2} />
           </Boton>
+          <Boton label="Disminuir nivel (Shift+Tab)" onClick={() => aplicar('outdent')}><Icon name="outdent" size={16} strokeWidth={2} /></Boton>
+          <Boton label="Aumentar nivel (Tab)" onClick={() => aplicar('indent')}><Icon name="indent" size={16} strokeWidth={2} /></Boton>
+          <span className="rte-sep" />
+          <Boton label="Insertar tabla" onClick={() => aplicar('insertHTML', TABLA_NUEVA)}><Icon name="tabla" size={16} strokeWidth={2} /></Boton>
+          {enTabla && (
+            <>
+              <Boton label="Agregar fila debajo" onClick={agregarFila}><span className="rte-txt">+ Fila</span></Boton>
+              <Boton label="Agregar columna a la derecha" onClick={agregarColumna}><span className="rte-txt">+ Col</span></Boton>
+              <Boton label="Quitar fila" onClick={quitarFila}><span className="rte-txt">− Fila</span></Boton>
+              <Boton label="Quitar columna" onClick={quitarColumna}><span className="rte-txt">− Col</span></Boton>
+              <Boton label="Eliminar tabla" onClick={quitarTabla}><Icon name="trash" size={15} strokeWidth={2} /></Boton>
+            </>
+          )}
           {!compacto && (
             <>
               <span className="rte-sep" />
@@ -114,10 +222,11 @@ export default function TextoEnriquecido(props: Props) {
           data-placeholder={placeholder}
           style={{ minHeight }}
           onInput={emitir}
+          onKeyDown={onKeyDown}
           onFocus={() => setFoco(true)}
           onBlur={() => setFoco(false)}
           onPaste={e => {
-            // Keep structure (lists, bold) but drop Word/web styles and links.
+            // Keep structure (lists, bold, tables) but drop Word/web styles and links.
             e.preventDefault()
             const html = e.clipboardData.getData('text/html')
             const texto = e.clipboardData.getData('text/plain')

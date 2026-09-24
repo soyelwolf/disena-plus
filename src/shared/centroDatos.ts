@@ -8,53 +8,61 @@ import { supabase } from './supabaseClient'
 export interface TablaConfig {
   tabla: string
   pk: string
+  /** SharePoint list name, so the Centro de datos reads like the old site. */
   titulo: string
+  /** Plain-language description under the name. */
+  descripcion: string
   grupo: string
   /** Column that names a row when another table points at it. */
   etiqueta?: string
+  /** Columns shown first, in this order. */
+  orden?: string[]
 }
 
-export const GRUPOS = ['Información base', 'Contenido académico', 'Seguimiento'] as const
+export const GRUPOS = ['Listas', 'Seguimiento', 'Tablas internas'] as const
 
 export const TABLAS: TablaConfig[] = [
-  { grupo: 'Información base', tabla: 'dpl_curso', pk: 'dpl_cursoid', titulo: 'Cursos', etiqueta: 'dpl_nombrecurso' },
-  { grupo: 'Información base', tabla: 'dpl_unidad', pk: 'dpl_unidadid', titulo: 'Unidades', etiqueta: 'dpl_nombreunidad' },
-  { grupo: 'Información base', tabla: 'dpl_sesion', pk: 'dpl_sesionid', titulo: 'Elementos de evaluación (sesiones)', etiqueta: 'dpl_elemento' },
-  { grupo: 'Información base', tabla: 'dpl_programa', pk: 'dpl_programaid', titulo: 'Programas', etiqueta: 'dpl_nombre' },
-  { grupo: 'Información base', tabla: 'dpl_cursoprograma', pk: 'dpl_cursoprogramaid', titulo: 'Cursos por programa' },
-  { grupo: 'Información base', tabla: 'dpl_competencia', pk: 'dpl_competenciaid', titulo: 'Competencias', etiqueta: 'dpl_competencia' },
-  { grupo: 'Información base', tabla: 'dpl_cursoprogramacompetencia', pk: 'dpl_cursoprogramacompetenciaid', titulo: 'Competencias por curso y programa' },
-  { grupo: 'Información base', tabla: 'dpl_taxonomiaitem', pk: 'dpl_taxonomiaitemid', titulo: 'Taxonomía de la matriz' },
-  { grupo: 'Contenido académico', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'Consignas', etiqueta: 'dpl_idconsignatext' },
-  { grupo: 'Contenido académico', tabla: 'dpl_rubrica', pk: 'dpl_rubricaid', titulo: 'Rúbricas', etiqueta: 'dpl_nombre' },
-  { grupo: 'Contenido académico', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'Criterios de rúbrica', etiqueta: 'dpl_criterio' },
-  { grupo: 'Contenido académico', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'Competencias por criterio' },
-  { grupo: 'Contenido académico', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'Matrices', etiqueta: 'dpl_nombre' },
-  { grupo: 'Contenido académico', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'Preguntas de matriz' },
-  { grupo: 'Contenido académico', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'Listas de cotejo', etiqueta: 'dpl_nombre' },
-  { grupo: 'Contenido académico', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'Indicadores de lista de cotejo' },
-  { grupo: 'Contenido académico', tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid', titulo: 'Escalas de valoración', etiqueta: 'dpl_nombre' },
-  { grupo: 'Contenido académico', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'Indicadores de escala' },
-  { grupo: 'Seguimiento', tabla: 'dpl_procesocurso', pk: 'dpl_procesocursoid', titulo: 'Estado del proceso por curso' },
-  { grupo: 'Seguimiento', tabla: 'dpl_procesoevento', pk: 'dpl_procesoeventoid', titulo: 'Historial de aprobaciones' },
-  { grupo: 'Seguimiento', tabla: 'dpl_comentario', pk: 'dpl_comentarioid', titulo: 'Comentarios de aprobadores' },
+  {
+    grupo: 'Listas', tabla: 'dpl_curso', pk: 'dpl_cursoid', titulo: 'LISTADO_CURSOS_PARA_IA', descripcion: 'Cursos y personas asignadas', etiqueta: 'dpl_nombrecurso',
+    orden: ['dpl_idcursotext', 'dpl_codigocatalogo', 'dpl_nombrecurso', 'dpl_carrera', 'dpl_tipoensenanza', 'dpl_ciclo'],
+  },
+  { grupo: 'Listas', tabla: 'dpl_unidad', pk: 'dpl_unidadid', titulo: 'UNIDADES_CURSOS_IA', descripcion: 'Unidades y logros', etiqueta: 'dpl_nombreunidad', orden: ['dpl_idunidadtext', 'dpl_numerounidad', 'dpl_nombreunidad', 'dpl_logroespecifico'] },
+  { grupo: 'Listas', tabla: 'dpl_sesion', pk: 'dpl_sesionid', titulo: 'SESIONES_CURSOS_IA', descripcion: 'Elementos de evaluación', etiqueta: 'dpl_elemento', orden: ['dpl_idsesiontext', 'dpl_elemento', 'dpl_abreviatura', 'dpl_tema'] },
+  { grupo: 'Listas', tabla: 'dpl_cursoprogramacompetencia', pk: 'dpl_cursoprogramacompetenciaid', titulo: 'MAPEO_IA', descripcion: 'Competencias por curso y programa' },
+  { grupo: 'Listas', tabla: 'dpl_consigna', pk: 'dpl_consignaid', titulo: 'CONSOLIDADO_CONSIGNAS', descripcion: 'Consignas', etiqueta: 'dpl_idconsignatext', orden: ['dpl_idconsignatext', 'dpl_instrumento'] },
+  { grupo: 'Listas', tabla: 'dpl_rubricacriterio', pk: 'dpl_rubricacriterioid', titulo: 'CONSOLIDADO_RUBRICAS', descripcion: 'Criterios de las rúbricas', etiqueta: 'dpl_criterio', orden: ['dpl_rubricaid', 'dpl_orden', 'dpl_criterio'] },
+  { grupo: 'Listas', tabla: 'dpl_rubricacriteriocompetencia', pk: 'dpl_rubricacriteriocompetenciaid', titulo: 'REL_RUBRICA_COMPETENCIAS', descripcion: 'Competencias elegidas por criterio' },
+  { grupo: 'Listas', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Preguntas de la matriz' },
+  { grupo: 'Listas', tabla: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoindicadorid', titulo: 'CONSOLIDADO_LISTA_DE_COTEJO', descripcion: 'Indicadores de la lista de cotejo' },
+  { grupo: 'Listas', tabla: 'dpl_escalaindicador', pk: 'dpl_escalaindicadorid', titulo: 'CONSOLIDADO_ESCALA_DE_VALORACION', descripcion: 'Indicadores de la escala' },
+  { grupo: 'Listas', tabla: 'dpl_taxonomiaitem', pk: 'dpl_taxonomiaitemid', titulo: 'TAXONOMIA_MATRIZ_SN_RUBRICA', descripcion: 'Catálogo de taxonomía' },
+  { grupo: 'Listas', tabla: 'dpl_competencia', pk: 'dpl_competenciaid', titulo: 'COMPETENCIAS_PARA_MAPEO', descripcion: 'Catálogo de competencias', etiqueta: 'dpl_competencia' },
+  { grupo: 'Listas', tabla: 'dpl_programa', pk: 'dpl_programaid', titulo: 'PROGRAMAS', descripcion: 'Catálogo de programas', etiqueta: 'dpl_nombre' },
+  { grupo: 'Listas', tabla: 'dpl_cursoprograma', pk: 'dpl_cursoprogramaid', titulo: 'MAPEO_PROGRAMAS', descripcion: 'Programas de cada curso' },
+  { grupo: 'Seguimiento', tabla: 'dpl_procesocurso', pk: 'dpl_procesocursoid', titulo: 'ESTADO_PROCESO', descripcion: 'Estado de aprobación por curso' },
+  { grupo: 'Seguimiento', tabla: 'dpl_procesoevento', pk: 'dpl_procesoeventoid', titulo: 'HISTORIAL_APROBACIONES', descripcion: 'Quién finalizó, aprobó o devolvió' },
+  { grupo: 'Seguimiento', tabla: 'dpl_comentario', pk: 'dpl_comentarioid', titulo: 'COMENTARIOS', descripcion: 'Comentarios de los aprobadores' },
+  { grupo: 'Tablas internas', tabla: 'dpl_rubrica', pk: 'dpl_rubricaid', titulo: 'Rúbricas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Tablas internas', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'Matrices (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Tablas internas', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'Listas de cotejo (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
+  { grupo: 'Tablas internas', tabla: 'dpl_escalavaloracion', pk: 'dpl_escalavaloracionid', titulo: 'Escalas (cabecera)', descripcion: 'Una por elemento', etiqueta: 'dpl_nombre' },
 ]
 
 /** Column headers — SharePoint names where the column came from a SharePoint list. */
 const ETIQUETAS: Record<string, string> = {
-  dpl_idcursotext: 'ID_CURSO_TEXT',
-  dpl_nombrecurso: 'NOMBRE_CURSO',
-  dpl_codigocatalogo: 'COD_CATALAGO',
-  dpl_carrera: 'CARRERA',
-  dpl_tipoensenanza: 'TIPO_ENSEÑANZA',
-  dpl_ciclo: 'CICLO',
-  dpl_logrocurso: 'LOGRO_CURSO',
+  dpl_idcursotext: 'ID_CURSO',
+  dpl_nombrecurso: 'Nombre de curso',
+  dpl_codigocatalogo: 'Código de catálogo',
+  dpl_carrera: 'Carrera',
+  dpl_tipoensenanza: 'Tipo_Enseñanza',
+  dpl_ciclo: 'Ciclo',
+  dpl_logrocurso: 'Logro de aprendizaje',
   dpl_permiteconsignas: 'Permite_Consignas',
   dpl_permiterubricas: 'Permite_Rubricas',
   dpl_permitematrizsn: 'Permite_Matriz',
   dpl_permitelistacotejo: 'Permite_Lista_Cotejo',
   dpl_permiteescala: 'Permite_Escala',
-  dpl_docenteasignado: 'DocenteyAsesor',
+  dpl_docenteasignado: 'DocenteyAsesor (texto antiguo)',
   dpl_horas: 'Horas',
   dpl_metodologia: 'Metodología',
   dpl_software: 'Software',
@@ -127,7 +135,37 @@ export function etiquetaColumna(col: string): string {
 export function columnasVisibles(filas: Array<Record<string, unknown>>, cfg: TablaConfig): string[] {
   const cols = new Set<string>()
   for (const f of filas.slice(0, 50)) Object.keys(f).forEach(k => cols.add(k))
-  return [...cols].filter(c => c !== cfg.pk && !OCULTAS.has(c))
+  const todas = [...cols].filter(c => c !== cfg.pk && !OCULTAS.has(c))
+  const primero = (cfg.orden ?? []).filter(c => todas.includes(c))
+  return [...primero, ...todas.filter(c => !primero.includes(c))]
+}
+
+/** Lookup chains so every row can show which course it belongs to, like the SharePoint lists did. */
+export interface Relaciones {
+  nombres: Map<string, string>
+  cursoDe: (fila: Record<string, unknown>) => string | null
+  cursoTexto: Map<string, string>
+}
+
+export async function cargarRelaciones(): Promise<Relaciones> {
+  const [nombres, u, s, r, c] = await Promise.all([
+    cargarNombres(),
+    supabase.from('dpl_unidad').select('dpl_unidadid, dpl_cursoid').limit(10000),
+    supabase.from('dpl_sesion').select('dpl_sesionid, dpl_unidadid').limit(10000),
+    supabase.from('dpl_rubrica').select('dpl_rubricaid, dpl_sesionid').limit(10000),
+    supabase.from('dpl_curso').select('dpl_cursoid, dpl_idcursotext').limit(10000),
+  ])
+  const unidadCurso = new Map((u.data ?? []).map(x => [x.dpl_unidadid as string, x.dpl_cursoid as string]))
+  const sesionUnidad = new Map((s.data ?? []).map(x => [x.dpl_sesionid as string, x.dpl_unidadid as string]))
+  const rubricaSesion = new Map((r.data ?? []).map(x => [x.dpl_rubricaid as string, x.dpl_sesionid as string]))
+  const cursoTexto = new Map((c.data ?? []).map(x => [x.dpl_cursoid as string, (x.dpl_idcursotext as string) ?? '']))
+  const deSesion = (id: unknown): string | null => (id ? unidadCurso.get(sesionUnidad.get(id as string) ?? '') ?? null : null)
+  const cursoDe = (f: Record<string, unknown>): string | null =>
+    (f.dpl_cursoid as string | undefined) ??
+    (f.dpl_unidadid ? unidadCurso.get(f.dpl_unidadid as string) ?? null : null) ??
+    deSesion(f.dpl_sesionid) ??
+    (f.dpl_rubricaid ? deSesion(rubricaSesion.get(f.dpl_rubricaid as string)) : null)
+  return { nombres, cursoDe, cursoTexto }
 }
 
 export async function cargarTabla(cfg: TablaConfig): Promise<{ existe: boolean; filas: Array<Record<string, unknown>> }> {
@@ -170,9 +208,15 @@ export async function eliminarFila(cfg: TablaConfig, id: string): Promise<void> 
 }
 
 /** Excel-friendly CSV (UTF-8 BOM, ";" separator) and trigger the download. */
-export function descargarCsv(nombre: string, columnas: string[], filas: Array<Record<string, unknown>>, valor: (f: Record<string, unknown>, c: string) => string) {
+export function descargarCsv(
+  nombre: string,
+  columnas: string[],
+  filas: Array<Record<string, unknown>>,
+  valor: (f: Record<string, unknown>, c: string) => string,
+  encabezado: (c: string) => string = etiquetaColumna,
+) {
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`
-  const lineas = [columnas.map(c => esc(etiquetaColumna(c))).join(';'), ...filas.map(f => columnas.map(c => esc(valor(f, c))).join(';'))]
+  const lineas = [columnas.map(c => esc(encabezado(c))).join(';'), ...filas.map(f => columnas.map(c => esc(valor(f, c))).join(';'))]
   const blob = new Blob(['﻿' + lineas.join('\r\n')], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
