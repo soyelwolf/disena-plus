@@ -24,6 +24,23 @@ const USUARIOS = '__usuarios__'
 
 export default function CentroDatos() {
   const [vista, setVista] = useState<string>(USUARIOS)
+  const [menuContraido, setMenuContraido] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('disena.datos.menu') === 'contraido'
+    } catch {
+      return false
+    }
+  })
+  const alternarMenu = () =>
+    setMenuContraido(v => {
+      try {
+        localStorage.setItem('disena.datos.menu', v ? 'abierto' : 'contraido')
+      } catch {
+        // Only a convenience — fine if storage is unavailable.
+      }
+      return !v
+    })
+  const actual = vista === USUARIOS ? 'Usuarios' : TABLAS.find(t => t.tabla === vista)?.titulo
   useEffect(() => {
     document.title = 'Centro de datos — Diseña+'
   }, [])
@@ -40,7 +57,18 @@ export default function CentroDatos() {
         </div>
       </div>
       <div className="datos-layout">
+        {menuContraido ? (
+          <nav className="datos-menu datos-menu-contraido" aria-label="Listas">
+            <button className="icon-btn" aria-label="Mostrar listas" title="Mostrar listas" onClick={alternarMenu}>
+              <Icon name="chevronRight" size={20} strokeWidth={2} />
+            </button>
+            <span className="datos-vertical" title={actual}>{actual}</span>
+          </nav>
+        ) : (
         <nav className="datos-menu" aria-label="Listas">
+          <button className="datos-contraer" onClick={alternarMenu} aria-label="Ocultar listas" title="Ocultar listas para ganar espacio">
+            <Icon name="chevronLeft" size={16} strokeWidth={2} />Ocultar
+          </button>
           <button className={`datos-item${vista === USUARIOS ? ' active' : ''}`} onClick={() => setVista(USUARIOS)}>
             <span>Usuarios</span>
             <small>Personas con acceso a Diseña+</small>
@@ -57,6 +85,7 @@ export default function CentroDatos() {
             </div>
           ))}
         </nav>
+        )}
         <div style={{ flex: 1, minWidth: 0 }}>
           {vista === USUARIOS ? (
             <UsuariosPanel />
@@ -126,14 +155,16 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
   const columnas = useMemo(() => {
     if (!filas) return []
     const base = columnasVisibles(filas, cfg)
-    const conExtras: string[] = conCurso ? [ID_CURSO_VIRTUAL] : []
-    const sinPos = extras.filter(e => !e.despuesDe || !base.includes(e.despuesDe)).map(e => e.key)
-    conExtras.push(...sinPos)
-    for (const c of base) {
-      conExtras.push(c)
-      conExtras.push(...extras.filter(e => e.despuesDe === c).map(e => e.key))
+    const claves = new Set([...base, ...extras.map(e => e.key)])
+    const orden: string[] = conCurso ? [ID_CURSO_VIRTUAL] : []
+    // Extras chain after a real column or after another extra ("despuesDe").
+    const poner = (k: string) => {
+      orden.push(k)
+      extras.filter(e => e.despuesDe === k).forEach(e => poner(e.key))
     }
-    return conExtras
+    extras.filter(e => !e.despuesDe || !claves.has(e.despuesDe)).forEach(e => poner(e.key))
+    base.forEach(poner)
+    return orden
   }, [filas, cfg, extras, conCurso])
   const extraPorKey = useMemo(() => new Map(extras.map(e => [e.key, e])), [extras])
   const texto = useCallback(
@@ -507,7 +538,7 @@ function ListadoCursosEditor({ cfg }: { cfg: TablaConfig }) {
       return {
         key: `__persona_${col.rol}`,
         label: col.label,
-        despuesDe: i === 0 ? 'dpl_ciclo' : `__persona_${COLUMNAS_PERSONAS[i - 1].rol}`,
+        despuesDe: i === 0 ? 'dpl_permiteescala' : `__persona_${COLUMNAS_PERSONAS[i - 1].rol}`,
         texto: (f: Record<string, unknown>) => personas(f).join('; '),
         render: (f: Record<string, unknown>) => (
           <button

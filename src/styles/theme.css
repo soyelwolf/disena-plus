@@ -550,3 +550,8 @@ fieldset:disabled .radio { cursor: default; opacity: 0.8; }
 .rte-area th, .rte-area td, .rte-view th, .rte-view td { border: 1px solid #c9d2d6; padding: 6px 8px; vertical-align: top; min-width: 60px; }
 .rte-area th, .rte-view th { background: var(--color-table-head); font-weight: 700; text-align: left; }
 .rte-txt { font-size: 12px; font-weight: 700; padding: 0 2px; }
+
+.datos-contraer { align-self: flex-end; display: inline-flex; align-items: center; gap: 4px; border: none; background: transparent; color: var(--color-primary); font: inherit; font-size: 12px; font-weight: 700; padding: 4px 6px; border-radius: 4px; }
+.datos-contraer:hover { background: var(--color-primary-light); }
+.datos-menu-contraido { width: 52px; align-items: center; padding: 8px 4px; gap: 12px; }
+.datos-vertical { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 12px; font-weight: 700; color: var(--color-text-muted); max-height: 60vh; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
