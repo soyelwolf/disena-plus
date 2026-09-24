@@ -39,6 +39,7 @@ const INSTRUMENTOS: Array<{ tipo: ReturnType<typeof tipoInstrumento>; label: str
   { tipo: 'matriz', label: 'Matriz', valor: INSTRUMENTO_VALORES.matrizSin },
   { tipo: 'lista', label: 'Lista de cotejo', valor: INSTRUMENTO_VALORES.lista },
   { tipo: 'escala', label: 'Escala de valoración', valor: INSTRUMENTO_VALORES.escala },
+  { tipo: 'escala', label: 'Escala de valoración (administración)', valor: INSTRUMENTO_VALORES.escalaAdmin },
   { tipo: null, label: 'No aplica', valor: INSTRUMENTO_VALORES.noAplica },
 ]
 
@@ -72,7 +73,8 @@ export default function ConsignasPage() {
   useEffect(cargarComentarios, [cargarComentarios])
 
   useEffect(() => {
-    if (ctx && !seleccion && ctx.elementos.length) setSeleccion(ctx.elementos[0].sesionId)
+    // Also when moving to another course: the previous selection does not belong to it.
+    if (ctx && ctx.elementos.length && !ctx.elementos.some(e => e.sesionId === seleccion)) setSeleccion(ctx.elementos[0].sesionId)
   }, [ctx, seleccion])
 
   // Autosave: edits are applied locally at once and flushed to the database
@@ -439,7 +441,7 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
               <input
                 type="radio"
                 name={`inst-${el.sesionId}`}
-                checked={i.valor === INSTRUMENTO_VALORES.noAplica ? valor === INSTRUMENTO_VALORES.noAplica : tipo !== null && tipo === i.tipo}
+                checked={i.tipo === 'escala' || i.tipo === null ? valor === i.valor : tipo === i.tipo}
                 onChange={() => onChange({ dpl_instrumento: i.valor })}
               />
               {i.label}
@@ -450,12 +452,6 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, numComen
           <div className="sub-opciones">
             <label className="radio"><input type="radio" name={`mat-${el.sesionId}`} checked={valor === INSTRUMENTO_VALORES.matrizCon} onChange={() => onChange({ dpl_instrumento: INSTRUMENTO_VALORES.matrizCon })} />Con rúbrica</label>
             <label className="radio"><input type="radio" name={`mat-${el.sesionId}`} checked={valor === INSTRUMENTO_VALORES.matrizSin} onChange={() => onChange({ dpl_instrumento: INSTRUMENTO_VALORES.matrizSin })} />Sin rúbrica</label>
-          </div>
-        )}
-        {tipo === 'escala' && (
-          <div className="sub-opciones">
-            <label className="radio"><input type="radio" name={`esc-${el.sesionId}`} checked={valor === INSTRUMENTO_VALORES.escala} onChange={() => onChange({ dpl_instrumento: INSTRUMENTO_VALORES.escala })} />Normal</label>
-            <label className="radio"><input type="radio" name={`esc-${el.sesionId}`} checked={valor === INSTRUMENTO_VALORES.escalaAdmin} onChange={() => onChange({ dpl_instrumento: INSTRUMENTO_VALORES.escalaAdmin })} />Cursos DDA administración</label>
           </div>
         )}
         {mostrarErrores && errores.dpl_instrumento && (
