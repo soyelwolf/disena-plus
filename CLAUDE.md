@@ -90,7 +90,7 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 - Alcance actual: **solo Diseño de contenido académico** (consignas + instrumentos). Mapeo y
   Contenido instruccional (sesiones/PPT) aún no.
 - `ID_CONSIGNA_TEXT` = curso-unidad-sesión (C16-U69-S313), función `idConsigna`. Adjuntos por consigna en Storage `adjuntos/consigna/<id>/`. Columnas IA (JSON, RESULTADO_GPT, MODELO_IA, HERRAMIENTA_IA) en consigna y cabeceras de instrumentos.
-- Rúbricas solo muestra elementos con cabecera creada al ACTIVAR; los instrumentos se activan cuando todas las consignas tienen instrumento ("no aplica" cuenta).
+- Rúbricas sigue al instrumento de la consigna: elementos con rúbrica cuya consigna ya no la usa salen como "sobrantes" (botón Quitar de Rúbricas: borra criterios, competencias y comentarios, con confirmación) y no cuentan para finalizar; si una consigna pasa a usar rúbrica, "Agregar a Rúbricas". Los instrumentos se activan cuando todas las consignas tienen instrumento ("no aplica" cuenta). Pendiente: avisar en Consignas al cambiar el instrumento de un elemento con criterios.
 - Consignas: instrumento Rúbrica / Matriz (con o sin rúbrica) / Lista de cotejo / Escala (normal o
   "cursos DDA administración"). Límites: Indicación general 2000, Indicaciones específicas 10000,
   Recomendaciones 2000, Anexo 15000 (en `LIMITES`, `academico.ts`).

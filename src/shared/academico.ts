@@ -328,7 +328,12 @@ export interface RubricaElemento {
 }
 
 export interface RubricasCurso {
+  /** Elements that have a rubric and whose consigna still uses one. */
   elementos: RubricaElemento[]
+  /** Have a rubric, but the consigna changed to an instrument without rubric (can be removed). */
+  sobrantes: RubricaElemento[]
+  /** The consigna now uses a rubric, but the element has none yet (can be added). */
+  faltantes: Elemento[]
   competencias: CompetenciaCurso[]
   selecciones: SeleccionCompetencia[]
   /** False until schema-flujo.sql adds dpl_programaid to the selection table. */
@@ -400,14 +405,18 @@ export async function getRubricasCurso(ctx: CursoContexto): Promise<RubricasCurs
     }))
   }
 
-  const elementos: RubricaElemento[] = ctx.elementos
+  const conRubrica: RubricaElemento[] = ctx.elementos
     .filter(e => rubricaPorSesion.has(e.sesionId))
     .map(e => {
       const rubricaId = rubricaPorSesion.get(e.sesionId) ?? null
       return { elemento: e, rubricaId, criterios: criterios.filter(c => c.dpl_rubricaid === rubricaId) }
     })
+  // The rubric follows the instrument chosen in the consigna (an empty choice keeps it).
+  const elementos = conRubrica.filter(r => !r.elemento.consigna?.dpl_instrumento || usaRubrica(r.elemento))
+  const sobrantes = conRubrica.filter(r => !elementos.includes(r))
+  const faltantes = ctx.elementos.filter(e => usaRubrica(e) && !rubricaPorSesion.has(e.sesionId))
 
-  return { elementos, competencias, selecciones, seleccionPorPrograma }
+  return { elementos, sobrantes, faltantes, competencias, selecciones, seleccionPorPrograma }
 }
 
 export function totalEstandar(criterios: Array<Pick<CriterioRow, 'dpl_puntajeestandar'>>): number {
@@ -476,6 +485,25 @@ export function advertenciasRubrica(criterios: Array<Partial<Record<keyof Criter
       avisos.push(`Criterio N°${i + 1}: los puntajes (${p.join(' - ')}) deben bajar de nivel en nivel y sin repetirse, por ejemplo 6 - 5 - 3 - 1.`)
   })
   return avisos
+}
+
+/** Whether the consigna of an element uses a rubric (Rúbrica or Matriz con rúbrica). */
+export function usaRubrica(e: Elemento): boolean {
+  return ([INSTRUMENTO_VALORES.rubrica, INSTRUMENTO_VALORES.matrizCon] as string[]).includes((e.consigna?.dpl_instrumento ?? '').toLowerCase())
+}
+
+/** Remove the rubric of an element whose consigna no longer uses one (criteria, competences and comments too). */
+export async function quitarRubricaElemento(r: RubricaElemento): Promise<void> {
+  const ids = r.criterios.map(c => c.dpl_rubricacriterioid)
+  if (ids.length) await supabase.from('dpl_comentario').delete().in('dpl_entidadid', ids)
+  if (!r.rubricaId) return
+  const { error } = await supabase.from('dpl_rubrica').delete().eq('dpl_rubricaid', r.rubricaId)
+  fail(error, 'No se pudo quitar la rúbrica.')
+}
+
+/** Create the (empty) rubric of elements whose consigna now uses one. */
+export async function agregarARubricas(elementos: Elemento[], usuario: string): Promise<void> {
+  for (const e of elementos) await asegurarRubrica(e, usuario)
 }
 
 async function asegurarRubrica(elemento: Elemento, usuario: string): Promise<string> {

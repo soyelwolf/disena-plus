@@ -22,14 +22,31 @@ const ADMIN_NAV: NavItem[] = [{ to: '/datos', label: 'Centro de datos', icon: 'd
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, isAuthenticated, isAdmin } = useAuth()
+  // ☰ narrows the sidebar to icons only (remembered in this browser).
+  const [compacta, setCompacta] = useState(() => {
+    try {
+      return localStorage.getItem('disena.menu.compacto') === '1'
+    } catch {
+      return false
+    }
+  })
+  const alternarMenu = () =>
+    setCompacta(c => {
+      try {
+        localStorage.setItem('disena.menu.compacto', c ? '0' : '1')
+      } catch {
+        // Storage blocked: the choice just isn't remembered.
+      }
+      return !c
+    })
 
   // The login screen is full-bleed (photo + form), no app chrome.
   if (!isAuthenticated || !user) return <>{children}</>
 
   return (
-    <div className="shell">
+    <div className={`shell${compacta ? ' shell-compacta' : ''}`}>
       <aside className="shell-sidebar" aria-label="Menú principal">
-        <button className="shell-menu-btn" aria-label="Menú">
+        <button className="shell-menu-btn" aria-label={compacta ? 'Mostrar nombres del menú' : 'Ocultar nombres del menú'} aria-expanded={!compacta} title={compacta ? 'Mostrar menú' : 'Ocultar menú'} onClick={alternarMenu}>
           <Icon name="menu" size={28} strokeWidth={2} />
         </button>
         <nav className="shell-nav">
@@ -60,9 +77,9 @@ export default function Layout({ children }: { children: ReactNode }) {
 
 function SideLink({ item }: { item: NavItem }) {
   return (
-    <NavLink to={item.to} className={({ isActive }) => `shell-nav-link${isActive ? ' active' : ''}`}>
+    <NavLink to={item.to} title={item.label} className={({ isActive }) => `shell-nav-link${isActive ? ' active' : ''}`}>
       <Icon name={item.icon} size={22} />
-      <span style={{ textAlign: 'center', lineHeight: 1.2, padding: '0 4px' }}>{item.label}</span>
+      <span className="shell-nav-texto" style={{ textAlign: 'center', lineHeight: 1.2, padding: '0 4px' }}>{item.label}</span>
     </NavLink>
   )
 }

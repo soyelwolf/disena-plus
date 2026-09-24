@@ -23,6 +23,8 @@ import {
   marcarCompetencia,
   REGLAS_RUBRICA,
   advertenciasRubrica,
+  agregarARubricas,
+  quitarRubricaElemento,
   problemaElemento,
   totalEstandar,
   type Comentario,
@@ -54,6 +56,7 @@ export default function RubricasPage() {
   const [intentoFinalizar, setIntentoFinalizar] = useState(false)
   const [modal, setModal] = useState<null | 'confirmar' | 'incompleto' | 'enviado' | 'finalizado' | 'ia_pendiente'>(null)
   const [eliminar, setEliminar] = useState<CriterioRow | null>(null)
+  const [quitarRubrica, setQuitarRubrica] = useState<RubricaElemento | null>(null)
   const [trabajando, setTrabajando] = useState(false)
   const [iaPara, setIaPara] = useState<RubricaElemento | null>(null)
   const [comentarios, setComentarios] = useState<Comentario[]>([])
@@ -177,6 +180,20 @@ export default function RubricasPage() {
     }
   }
 
+  const quitar = async (r: RubricaElemento) => {
+    setQuitarRubrica(null)
+    setTrabajando(true)
+    try {
+      await quitarRubricaElemento(r)
+      await cargar()
+      toast(`${r.elemento.nombre} se quitó de Rúbricas`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo quitar.', 'error')
+    } finally {
+      setTrabajando(false)
+    }
+  }
+
   const confirmarEliminar = async () => {
     if (!eliminar) return
     const c = eliminar
@@ -293,6 +310,35 @@ export default function RubricasPage() {
             {pendientesRubrica > 0 ? `Hay ${pendientesRubrica} ${pendientesRubrica === 1 ? 'comentario pendiente' : 'comentarios pendientes'} en la rúbrica` : comentarios.length > 0 ? 'Todos los comentarios de la rúbrica están resueltos' : 'Aún no hay comentarios del Monitor EA ni DDA en la rúbrica'}
           </span>
           <button className="link-btn" onClick={() => setFiltro({})}>Ver comentarios</button>
+        </div>
+      )}
+
+      {datos.faltantes.length > 0 && (
+        <div className="alert-banner alert-info" style={{ justifyContent: 'space-between', padding: '12px 14px', flexWrap: 'wrap', gap: 10 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
+            <Icon name="info" size={16} />
+            Estos elementos ahora usan rúbrica en su consigna: <b>{datos.faltantes.map(e => e.nombre).join(', ')}</b>
+          </span>
+          {puede && (
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={async () => {
+                if (!user) return
+                setTrabajando(true)
+                try {
+                  await agregarARubricas(datos.faltantes, user.correo)
+                  await cargar()
+                  toast(datos.faltantes.length > 1 ? 'Se agregaron a Rúbricas' : 'Se agregó a Rúbricas')
+                } catch (err) {
+                  toast(err instanceof Error ? err.message : 'No se pudo agregar.', 'error')
+                } finally {
+                  setTrabajando(false)
+                }
+              }}
+            >
+              <Icon name="plus" size={15} />Agregar a Rúbricas
+            </button>
+          )}
         </div>
       )}
 
@@ -492,6 +538,41 @@ export default function RubricasPage() {
         etiquetaRol={rol.etiqueta}
         onIrItem={irItem}
       />
+      {datos.sobrantes.map(r => (
+        <section key={r.elemento.sesionId} className="panel rubrica-card rubrica-sobrante">
+          <div className="row-between" style={{ flexWrap: 'wrap', gap: 10 }}>
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700 }}>{r.elemento.nombre}</h2>
+              <span style={{ fontSize: 13, color: '#5c3a00' }}>
+                La consigna ahora usa <b>{r.elemento.consigna?.dpl_instrumento}</b>: este elemento ya no necesita rúbrica y no cuenta para finalizar.
+                {r.criterios.length > 0 ? ` Tiene ${r.criterios.length} ${r.criterios.length === 1 ? 'criterio' : 'criterios'}.` : ''}
+              </span>
+            </span>
+            {puede && (
+              <button className="btn btn-outline btn-sm" onClick={() => (r.criterios.length ? setQuitarRubrica(r) : quitar(r))}>
+                <Icon name="trash" size={15} />Quitar de Rúbricas
+              </button>
+            )}
+          </div>
+        </section>
+      ))}
+      <Modal
+        open={!!quitarRubrica}
+        title="¿Quitar este elemento de Rúbricas?"
+        onClose={() => setQuitarRubrica(null)}
+        actions={
+          <>
+            <button className="btn btn-outline" onClick={() => setQuitarRubrica(null)}>No, cancelar</button>
+            <button className="btn btn-primary" onClick={() => quitarRubrica && quitar(quitarRubrica)}>Sí, quitar</button>
+          </>
+        }
+      >
+        {quitarRubrica && (
+          <>
+            Se eliminará la rúbrica de <b>{quitarRubrica.elemento.nombre}</b> con sus <b>{quitarRubrica.criterios.length} criterios</b>, las competencias marcadas y sus comentarios. No se puede deshacer.
+          </>
+        )}
+      </Modal>
       <SavingOverlay show={trabajando} />
       {compararDe && propuestas.get(compararDe.elemento.sesionId) && (() => {
         const p = propuestas.get(compararDe.elemento.sesionId)!

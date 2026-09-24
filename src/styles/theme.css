@@ -704,3 +704,12 @@ body.con-panel-comentarios .shell-main { padding-right: 440px; }
 .historial-item.ok .historial-icono { background: #e3f4ea; color: #0a7a3e; }
 .historial-item.alerta .historial-icono { background: #fff4e0; color: #8a4b00; }
 .celda-contexto { color: #4a5a57; background: #f4f7f6; }
+.rubrica-sobrante { border: 1px dashed #e0b000; background: #fffaf0; }
+
+/* ☰ compact sidebar: icons only */
+.shell-compacta { --sidebar-width: 56px; }
+.shell-compacta .shell-nav-link { height: 56px; }
+.shell-compacta .shell-nav-texto { display: none; }
+.shell-compacta .shell-nav-sep { margin: 8px 10px; }
+.shell-menu-btn { cursor: pointer; }
+.shell-menu-btn:hover { background: rgba(255, 255, 255, 0.08); }
