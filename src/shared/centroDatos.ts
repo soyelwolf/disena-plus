@@ -43,6 +43,8 @@ export const TABLAS: TablaConfig[] = [
   {
     grupo: 'Cursos', tabla: 'dpl_curso', pk: 'dpl_cursoid', titulo: 'LISTADO_CURSOS_PARA_IA', descripcion: 'Cursos y personas asignadas', etiqueta: 'dpl_nombrecurso',
     orden: ['dpl_idcursotext', 'dpl_codigocatalogo', 'dpl_nombrecurso', 'dpl_carrera', 'dpl_tipoensenanza', 'dpl_ciclo'],
+    // Not part of this program (contenido académico): kept in the database, hidden here.
+    ocultas: ['dpl_cursoevidencia', 'dpl_ppt', 'dpl_sinppt', 'dpl_permitematrizcn', 'dpl_notif_matrizconrubrica_enviada', 'dpl_ia_matrizconrubrica_corrido'],
   },
   {
     grupo: 'Cursos', tabla: 'dpl_unidad', pk: 'dpl_unidadid', titulo: 'UNIDADES_CURSOS_IA', descripcion: 'Unidades, logros y elementos', etiqueta: 'dpl_nombreunidad',
