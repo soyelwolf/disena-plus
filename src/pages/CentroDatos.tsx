@@ -633,8 +633,11 @@ function TablaEditor({ cfg, extras = [], version = 0 }: { cfg: TablaConfig; extr
       return { ...k, v: fila ? valorCrudo(fila, k.col) ?? null : null }
     })
     try {
-      for (let i = 0; i < cambios.length; i += 10)
-        await Promise.all(cambios.slice(i, i + 10).map(k => (k.destino ? actualizarDestino(k.destino, k.v) : actualizarCelda(cfg, k.id, k.col, k.v))))
+      const nuevos = cambios.filter(k => k.destino?.crear && !k.destino.id)
+      const directos = cambios.filter(k => !nuevos.includes(k))
+      for (let i = 0; i < directos.length; i += 10)
+        await Promise.all(directos.slice(i, i + 10).map(k => (k.destino ? actualizarDestino(k.destino, k.v) : actualizarCelda(cfg, k.id, k.col, k.v))))
+      for (const k of nuevos) await actualizarDestino(k.destino!, k.v)
       const propios = cambios.filter(k => !k.destino)
       const porFila = new Map<string, Record<string, unknown>>()
       for (const k of propios) porFila.set(k.id, { ...(porFila.get(k.id) ?? {}), [k.col]: k.v })

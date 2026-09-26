@@ -24,6 +24,7 @@ import {
 import { useContenidoAcademico } from '../shared/hooks/useContenidoAcademico'
 import { getListasCurso, problemaLista, type ListasCurso } from '../shared/listaCotejo'
 import { getEscalasCurso, problemaEscala, type EscalasCurso } from '../shared/escala'
+import { getMatricesCurso, getTaxonomia, problemaMatriz, type MatricesCurso, type TaxonomiaItem } from '../shared/matriz'
 
 interface Tarjeta {
   titulo: string
@@ -45,6 +46,8 @@ export default function HubCurso() {
   const [rubricas, setRubricas] = useState<RubricasCurso | null>(null)
   const [listas, setListas] = useState<ListasCurso | null>(null)
   const [escalas, setEscalas] = useState<EscalasCurso | null>(null)
+  const [matrices, setMatrices] = useState<MatricesCurso | null>(null)
+  const [taxonomia, setTaxonomia] = useState<TaxonomiaItem[]>([])
   const [verFlujo, setVerFlujo] = useState(false)
   const [verAsignar, setVerAsignar] = useState(false)
   // Sílabo and formato de orientación of the course (PDFs uploaded in Mis cursos / Centro de datos).
@@ -67,6 +70,8 @@ export default function HubCurso() {
     if (ctx) getRubricasCurso(ctx).then(setRubricas).catch(() => setRubricas(null))
     if (ctx) getListasCurso(ctx).then(setListas).catch(() => setListas(null))
     if (ctx) getEscalasCurso(ctx).then(setEscalas).catch(() => setEscalas(null))
+    if (ctx) getMatricesCurso(ctx).then(setMatrices).catch(() => setMatrices(null))
+    getTaxonomia().then(setTaxonomia).catch(() => setTaxonomia([]))
     if (ctx) getActivacion(ctx).then(setActivacion).catch(() => setActivacion(null))
     if (ctx) pendientesPorPreparar(ctx).then(setPendientes).catch(() => setPendientes(null))
     if (ctx) comentariosPendientes(ctx.id).then(setComentariosAbiertos).catch(() => setComentariosAbiertos({}))
@@ -87,6 +92,8 @@ export default function HubCurso() {
   const rubricasOk = rubricaEls.filter(r => problemaElemento(r) === null).length
   const listaEls = listas?.elementos ?? []
   const listasOk = listaEls.filter(l => problemaLista(l) === null).length
+  const matrizEls = matrices?.elementos ?? []
+  const matricesOk = matrizEls.filter(m => problemaMatriz(m, taxonomia) === null).length
   const escalaEls = escalas?.elementos ?? []
   const escalasOk = escalaEls.filter(x => problemaEscala(x) === null).length
 
@@ -117,7 +124,22 @@ export default function HubCurso() {
       estado: rubricas && rubricaEls.length === 0 && rubricas.faltantes.length === 0 ? 'no_aplica' : 'activo',
       comentarios: comentariosAbiertos.rubricas,
     },
-    { titulo: 'Matriz', proceso: 'matriz', subtitulo: 'Cuadro detallado de puntajes', estado: ctx.permite.matriz ? 'proximamente' : 'bloqueado' },
+    {
+      titulo: 'Matriz',
+      proceso: 'matriz',
+      subtitulo: 'Cuadro detallado de puntajes',
+      to: `/cursos/${ctx.id}/matriz`,
+      avance: matrizEls.length ? (matricesOk / matrizEls.length) * 100 : 0,
+      detalle: !matrices
+        ? 'Calculando…'
+        : matrices.faltantes.length
+          ? porPreparar(matrices.faltantes.length)
+          : proceso.finalizado.matriz
+            ? enRevision
+            : `${matricesOk} de ${matrizEls.length} elementos completos`,
+      estado: !ctx.permite.matriz ? 'bloqueado' : matrices && matrizEls.length === 0 && matrices.faltantes.length === 0 ? 'no_aplica' : 'activo',
+      comentarios: comentariosAbiertos.matriz,
+    },
     {
       titulo: 'Lista de cotejo',
       proceso: 'lista',

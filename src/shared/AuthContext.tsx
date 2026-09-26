@@ -114,12 +114,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // On every page load, refresh name and roles from dpl_usuario: a role changed
   // in the Centro de datos applies without signing out.
   const correoSesion = user?.correo
+  const sinRegistro = !!user && !user.usuarioId
   useEffect(() => {
     if (!correoSesion) return
     buscarUsuario(correoSesion)
       .then(({ tabla, usuario }) => {
-        if (!tabla) return
-        if (!usuario) {
+        // Only people registered and active in Usuarios can use Diseña+.
+        if (!tabla || !usuario) {
           guardarSesion(null)
           setUser(null)
           return
@@ -129,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(prev => (prev && JSON.stringify(prev) === JSON.stringify(next) ? prev : next))
       })
       .catch(() => {})
-  }, [correoSesion])
+  }, [correoSesion, sinRegistro])
 
   const value = useMemo<AuthContextValue>(() => {
     const permisos = new Set((user?.roles ?? []).flatMap(r => PERMISOS[r]))

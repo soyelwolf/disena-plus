@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ROLE_LABELS, ROLES_ASIGNADOS, UTP_DOMAIN, normalizarRoles, rolesLabel, useAuth, type UserRole } from '../shared/AuthContext'
-import { buscarUsuario, type UsuarioRegistrado } from '../shared/academico'
+import { UTP_DOMAIN, normalizarRoles, useAuth } from '../shared/AuthContext'
+import { buscarUsuario } from '../shared/academico'
 import Icon from '../components/Icon'
 import Logo from '../components/Logo'
 
@@ -21,14 +21,7 @@ export default function Login() {
   const [correo, setCorreo] = useState(correoGuardado)
   const [recordar, setRecordar] = useState(() => correoGuardado() !== '')
   const [error, setError] = useState<string | null>(null)
-  const [enviado, setEnviado] = useState(false)
   const [validando, setValidando] = useState(false)
-  // 'db' = roles come from dpl_usuario; 'demo' = table not created yet.
-  const [modo, setModo] = useState<'db' | 'demo'>('demo')
-  const [registrado, setRegistrado] = useState<UsuarioRegistrado | null>(null)
-  const [rolDemo, setRolDemo] = useState<UserRole>('docente')
-  const rolesAsignados: UserRole[] | undefined =
-    modo === 'db' ? (registrado ? normalizarRoles(registrado.roles) : undefined) : ROLES_ASIGNADOS[correo.trim().toLowerCase()]
 
   useEffect(() => {
     document.title = 'Ingresar — Diseña+'
@@ -58,15 +51,22 @@ export default function Login() {
     }
     setValidando(true)
     try {
-      const { tabla, usuario } = await buscarUsuario(valor)
-      if (tabla && !usuario) {
-        setError('Tu correo aún no está registrado en Diseña+. Pide acceso al administrador.')
+      // Paso 2 (simulated): the e-mail must be registered and active in Usuarios (Centro de datos).
+      // TODO(auth): send the Supabase magic link / Microsoft sign-in here to verify it is really theirs.
+      const { tabla, usuario, inactivo } = await buscarUsuario(valor)
+      if (!tabla) {
+        setError('Diseña+ aún no tiene la lista de usuarios configurada. Avisa al administrador.')
         return
       }
-      setModo(tabla ? 'db' : 'demo')
-      setRegistrado(usuario)
-      // TODO(auth): send the Supabase magic link here instead of simulating it.
-      setEnviado(true)
+      if (inactivo) {
+        setError('Tu usuario está desactivado en Diseña+. Comunícate con el administrador.')
+        return
+      }
+      if (!usuario) {
+        setError('Tu correo no está registrado en Diseña+. Pide acceso al administrador.')
+        return
+      }
+      login(valor, normalizarRoles(usuario.roles), { usuarioId: usuario.id, nombre: usuario.nombre })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo validar tu correo.')
     } finally {
@@ -86,7 +86,6 @@ export default function Login() {
           <img src="/logo-utp.webp" alt="Universidad Tecnológica del Perú" style={{ height: 44, width: 'auto' }} />
         </div>
 
-        {!enviado ? (
           <form className="login-form" onSubmit={handleSubmit} noValidate>
             <div>
               <h1 style={{ fontSize: 36, fontWeight: 900, marginBottom: 8 }}>¡Hola!</h1>
@@ -131,7 +130,7 @@ export default function Login() {
             </label>
 
             <button type="submit" className="btn btn-primary" style={{ height: 48, fontWeight: 700 }} disabled={validando}>
-              {validando ? 'Validando…' : 'Enviar enlace de acceso'}
+              {validando ? 'Validando…' : 'Ingresar'}
             </button>
 
             <div className="login-note">
@@ -139,64 +138,11 @@ export default function Login() {
                 <Icon name="info" size={18} />
               </span>
               <span>
-                Te enviaremos un enlace a tu correo {UTP_DOMAIN}. Ábrelo desde este mismo equipo para entrar; no
-                necesitas contraseña.
+                Solo pueden ingresar las personas registradas en Diseña+ con su correo {UTP_DOMAIN}. Si no tienes acceso,
+                pídelo al administrador.
               </span>
             </div>
           </form>
-        ) : (
-          <div className="login-form">
-            <div>
-              <h1 style={{ fontSize: 32, fontWeight: 900, marginBottom: 8 }}>Revisa tu correo</h1>
-              <p style={{ color: '#3d434a' }}>
-                Enviamos un enlace de acceso a <b>{correo.trim().toLowerCase()}</b>. Puede tardar un minuto en llegar.
-              </p>
-            </div>
-
-            <div className="login-note" style={{ background: '#fff4e0', color: '#5c3a00' }}>
-              <span style={{ display: 'flex', flexShrink: 0, marginTop: 1 }}>
-                <Icon name="info" size={18} />
-              </span>
-              <span>
-                <b>Modo demostración:</b> el envío real del correo se activa al conectar el ingreso con la base de datos.
-                Por ahora puedes entrar directamente{rolesAsignados ? ' con tus roles asignados' : ' y elegir con qué rol probar la plataforma'}.
-              </span>
-            </div>
-
-            {rolesAsignados ? (
-              <div>
-                <span className="field-label">Tus roles</span>
-                <p style={{ fontSize: 15 }}>{rolesLabel(rolesAsignados)}</p>
-              </div>
-            ) : (
-              <div>
-                <label className="field-label" htmlFor="rol-demo">Entrar como</label>
-                <select id="rol-demo" value={rolDemo} onChange={e => setRolDemo(e.target.value as UserRole)} style={{ height: 44 }}>
-                  {(Object.keys(ROLE_LABELS) as UserRole[]).map(r => (
-                    <option key={r} value={r}>{ROLE_LABELS[r]}</option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <button
-              className="btn btn-primary"
-              style={{ height: 48, fontWeight: 700 }}
-              onClick={() =>
-                login(
-                  correo.trim(),
-                  rolesAsignados ?? [rolDemo],
-                  registrado ? { usuarioId: registrado.id, nombre: registrado.nombre } : undefined,
-                )
-              }
-            >
-              Entrar a Diseña+
-            </button>
-            <button className="btn btn-outline" style={{ height: 44 }} onClick={() => setEnviado(false)}>
-              Usar otro correo
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

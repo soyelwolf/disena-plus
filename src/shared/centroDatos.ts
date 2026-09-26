@@ -60,6 +60,8 @@ export interface Contexto {
   competencias: Array<Record<string, unknown>>
   /** Indicators of the checklist in order (only for LISTA_DE_COTEJO). */
   indicadores: Array<Record<string, unknown>>
+  /** Id of the instrument header of the row (matrix, checklist, scale). */
+  cabeceraId: string | null
   /** Name of the row's programme (dpl_programaid). */
   programa: string
   programaId: string | null
@@ -72,8 +74,11 @@ export interface Contexto {
 export interface DestinoContexto {
   tabla: string
   pk: string
+  /** '' with `crear`: the record doesn't exist yet and is created on save. */
   id: string
   col: string
+  /** Values that identify the new record (e.g. matrix + question number). */
+  crear?: Record<string, unknown>
 }
 export interface CampoContexto {
   etiqueta: string
@@ -178,7 +183,17 @@ const clavesMatriz = (grupos: typeof GRUPOS_MATRIZ) =>
   grupos.flatMap(g =>
     Array.from({ length: 10 }, (_, k) => {
       const key = `ctx_m${g.campo.replace('dpl_', '')}_${k + 1}`
-      CONTEXTO_MATRIZ[key] = { etiqueta: g.nombre(k + 1), valor: c => c.indicadores[k]?.[g.campo], destino: en('dpl_matrizpregunta', 'dpl_matrizpreguntaid', g.campo, c => c.indicadores[k]) }
+      const existente = en('dpl_matrizpregunta', 'dpl_matrizpreguntaid', g.campo, c => c.indicadores[k])
+      CONTEXTO_MATRIZ[key] = {
+        etiqueta: g.nombre(k + 1),
+        valor: c => c.indicadores[k]?.[g.campo],
+        // The next free question (N°n+1) can be filled in here: it is created. N°PREGUNTA is the order itself.
+        destino: c =>
+          existente(c) ??
+          (g.campo !== 'dpl_orden' && c.cabeceraId && k === c.indicadores.length
+            ? { tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', id: '', col: g.campo, crear: { dpl_matrizid: c.cabeceraId, dpl_orden: k + 1 } }
+            : null),
+      }
       return key
     }),
   )
@@ -421,7 +436,7 @@ export const TABLAS: TablaConfig[] = [
     etiquetas: { __id_curso__: 'ID_CURSO', dpl_programaid: 'ID_PROGRAMA', ctx_programa: 'Programa', ctx_idconsigna: 'ID_CONSIGNA_TEXT', ctx_elemento: 'Elemento', ctx_instrumento: 'Instrumento', dpl_competenciaid: 'ID_Competencia', dpl_competenciaevidencia: 'CompetenciaEvidencia', dpl_nivel: 'Nivel' },
   },
   {
-    grupo: 'Matriz', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Una fila por elemento, como SharePoint (preguntas 1 a 10 en columnas)', etiqueta: 'dpl_nombre',
+    grupo: 'Matriz', tabla: 'dpl_matriz', pk: 'dpl_matrizid', titulo: 'MATRIZ_SN_RUBRICA', descripcion: 'Una fila por elemento, como SharePoint: las preguntas 1 a 10 (con y sin rúbrica) van en columnas. Para agregar una pregunta, escribe en las columnas de la siguiente libre.', etiqueta: 'dpl_nombre',
     orden: ORDEN_MATRIZ_SP, contexto: CONTEXTO_MATRIZ_SP,
     etiquetas: {
       __id_curso__: 'ID_CURSO_TEXT', ctx_abreviatura: 'ABREVIATURA_ELEMENTO', dpl_paraia: 'PARA_IA', dpl_estado: 'ESTADO', dpl_json: 'JSON_IA', dpl_resultadogpt: 'RESULTADO_IA',
@@ -429,7 +444,6 @@ export const TABLAS: TablaConfig[] = [
       dpl_usuarioregistro: 'Usuario_Registro', dpl_fecharegistro: 'Fecha_Hora_Registro', dpl_usuarioia: 'IA_ParaMatrizSinRubrica_Usuario', dpl_fechaia: 'IA_ParaMatrizSinRubrica_Fecha',
     },
   },
-  { grupo: 'Matriz', tabla: 'dpl_matrizpregunta', pk: 'dpl_matrizpreguntaid', titulo: 'MATRIZ_SN_RUBRICA · preguntas', descripcion: 'Una fila por pregunta (para corregir pregunta por pregunta)', etiquetas: { __id_curso__: 'ID_CURSO_TEXT', ...ETIQUETAS_MATRIZ }, orden: [...CONTEXTO_INSTRUMENTO, ...ORDEN_MATRIZ], contexto: CONTEXTO_INSTRUMENTO },
   {
     grupo: 'Lista de cotejo', tabla: 'dpl_listacotejo', pk: 'dpl_listacotejoid', titulo: 'LISTA_DE_COTEJO', descripcion: 'Una fila por elemento, como SharePoint (indicadores 1 a 10 en columnas)', etiqueta: 'dpl_nombre',
     orden: ORDEN_LISTA_SP, contexto: CONTEXTO_LISTA,
@@ -448,7 +462,7 @@ export const TABLAS: TablaConfig[] = [
   { grupo: 'Matriz', tabla: 'dpl_matrizpregunta_backup', pk: 'dpl_backupid', titulo: 'MATRIZ_SN_RUBRICA_BACKUP', descripcion: 'Propuesta IA inicial de las preguntas', etiquetas: { ...ETIQUETAS_MATRIZ, ...ETIQUETAS_BACKUP }, orden: [...ORDEN_BACKUP, ...ORDEN_MATRIZ.slice(1)], soloLecturaTabla: true },
   { grupo: 'Lista de cotejo', tabla: 'dpl_listacotejoindicador_backup', pk: 'dpl_backupid', titulo: 'LISTA_DE_COTEJO_BACKUP', descripcion: 'Propuesta IA inicial de los indicadores', etiquetas: { ...ETIQUETAS_LISTA, ...ETIQUETAS_BACKUP }, orden: [...ORDEN_BACKUP, ...ORDEN_LISTA.slice(1)], soloLecturaTabla: true },
   { grupo: 'Escala de valoración', tabla: 'dpl_escalaindicador_backup', pk: 'dpl_backupid', titulo: 'ESCALA_DE_VALORACION_BACKUP', descripcion: 'Propuesta IA inicial de los indicadores', etiquetas: { ...ETIQUETAS_ESCALA, ...ETIQUETAS_BACKUP }, orden: [...ORDEN_BACKUP, ...ORDEN_ESCALA.slice(1)], ocultas: ESCALA_ANTIGUA, soloLecturaTabla: true },
-  { grupo: 'Matriz', tabla: 'dpl_taxonomiaitem', pk: 'dpl_taxonomiaitemid', titulo: 'TAXONOMIA_MATRIZ_SN_RUBRICA', descripcion: 'Catálogo de taxonomía' },
+  { grupo: 'Matriz', tabla: 'dpl_taxonomiaitem', pk: 'dpl_taxonomiaitemid', titulo: 'TAXONOMIA_MATRIZ_SN_RUBRICA', descripcion: 'Catálogo fijo de taxonomía: qué tipos de ítem permite cada nivel y su nombre en plataforma (solo lectura)', soloLecturaTabla: true },
   {
     grupo: 'Competencias', tabla: 'dpl_programa', pk: 'dpl_programaid', titulo: 'PROGRAMAS', descripcion: 'Programa de cada curso (un ID_PROGRAMA por fila)', etiqueta: 'dpl_nombre',
     agregar: true, referenciasEditables: ['dpl_cursoid'], script: 'supabase/schema-competencias-sp.sql',
@@ -781,6 +795,7 @@ export async function cargarRelaciones(cfg?: TablaConfig): Promise<Relaciones> {
       criterios: f.dpl_rubricaid ? criteriosDeRubrica.get(f.dpl_rubricaid as string) ?? [] : [],
       competencias: f.dpl_rubricaid ? competenciasDeRubrica.get(f.dpl_rubricaid as string) ?? [] : [],
       indicadores: conIndicadores ? indicadoresDeLista.get((f.dpl_listacotejoid ?? f.dpl_escalavaloracionid ?? f.dpl_matrizid) as string) ?? [] : [],
+      cabeceraId: ((f.dpl_matrizid ?? f.dpl_listacotejoid ?? f.dpl_escalavaloracionid) as string | undefined) ?? null,
       criterio: f.dpl_rubricacriterioid ? criterioPorId.get(f.dpl_rubricacriterioid as string) ?? null : null,
       competencia: f.dpl_competenciaid ? competenciaPorId.get(f.dpl_competenciaid as string) ?? null : null,
       programa: f.dpl_programaid ? programa.get(f.dpl_programaid as string) ?? '' : '',
@@ -868,6 +883,19 @@ export function codigoReferencia(fila: Record<string, unknown>): string {
 
 /** Save a context value in the list it comes from. */
 export async function actualizarDestino(d: DestinoContexto, valor: unknown): Promise<void> {
+  if (!d.id && d.crear) {
+    // Created by an earlier cell of the same paste? Then update it instead of creating another.
+    let q = supabase.from(d.tabla).select(d.pk)
+    for (const [k, v] of Object.entries(d.crear)) q = q.eq(k, v as string)
+    const { data: existe, error: e1 } = await q.limit(1)
+    if (e1) throw new Error(e1.message)
+    const id = (existe?.[0] as unknown as Record<string, unknown> | undefined)?.[d.pk]
+    if (id) return actualizarDestino({ ...d, id: String(id), crear: undefined }, valor)
+    if (valor === null || valor === '') return
+    const { error } = await supabase.from(d.tabla).insert({ ...d.crear, [d.col]: valor })
+    if (error) throw new Error(error.message)
+    return
+  }
   const { error } = await supabase.from(d.tabla).update({ [d.col]: valor }).eq(d.pk, d.id)
   if (error) throw new Error(error.message)
 }

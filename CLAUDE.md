@@ -50,7 +50,7 @@ src/
     Aprobaciones.tsx      panel "Flujo de trabajo": Monitor EA → DDA, devolver, habilitar
     Comentarios.tsx       comentarios de aprobadores por consigna/criterio
   pages/
-    Login.tsx             ingreso por correo @utp.edu.pe (modo demo, sin enlace real aún)
+    Login.tsx             ingreso: solo correos registrados y activos en Usuarios (simulado: aún sin verificar el correo)
     ListadoCursos.tsx     tabla de cursos (solo asignados, salvo admin)
     HubCurso.tsx          curso por etapas: Mapeo (próx.) · Contenido académico · Instruccional (próx.)
     ConsignasPage.tsx     consignas: lista de elementos, autoguardado, finalizar, solo lectura
@@ -62,7 +62,8 @@ src/
     CentroDatos.tsx       admin: listas tipo SharePoint + Usuarios
     Soporte.tsx           canal de atención: analistas (Teams/correo) + chat de consultas con el admin
     Proximamente.tsx      Manuales, Lineamientos, Tutoriales (por construir)
-    SeccionIndice.tsx, detalle/*   pantallas ANTIGUAS de Matriz (por rehacer)
+    MatrizPage.tsx, MatrizForm.tsx   matriz con y sin rúbrica (misma forma que Lista de cotejo)
+    SeccionIndice.tsx, detalle/*   pantallas ANTIGUAS (ya no se usan para Matriz; por retirar)
   shared/
     academico.ts          datos del proceso: curso, consignas, rúbricas, flujo, usuarios
     centroDatos.ts        catálogo de listas del Centro de datos (nombres SharePoint)
@@ -100,7 +101,7 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 - `ID_CONSIGNA_TEXT` = curso-unidad-sesión (C16-U69-S313), función `idConsigna`. Adjuntos por consigna en Storage `adjuntos/consigna/<id>/`. Columnas IA (JSON, RESULTADO_GPT, MODELO_IA, HERRAMIENTA_IA) en consigna y cabeceras de instrumentos.
 - Rúbricas sigue al instrumento de la consigna: elementos con rúbrica cuya consigna ya no la usa salen como "sobrantes" (botón Quitar de Rúbricas: borra criterios, competencias y comentarios, con confirmación) y no cuentan para finalizar; si una consigna pasa a usar rúbrica, "Agregar a Rúbricas". Los instrumentos se activan cuando todas las consignas tienen instrumento ("no aplica" cuenta). Al cambiar el instrumento en Consignas, si el elemento ya tiene contenido en el instrumento anterior (`contenidoDeElemento`), se pide confirmación con motivo opcional; todo cambio de instrumento (y todo "Quitar" de un sobrante) queda como **incidencia** en el historial del curso (`dpl_procesoevento`, acciones `cambio_instrumento` / `quitado`, `registrarIncidencia`), visible en «Flujo de trabajo».
 - Lista de cotejo (`listaCotejo.ts`, `REGLAS_LISTA`, `advertenciasLista`): sigue al instrumento de la consigna igual que Rúbricas (sobrantes/faltantes). Hasta 10 indicadores (Indicador, Puntaje, Observaciones; Sí/No se llena al calificar) y los puntajes suman 20. Observaciones es opcional y lleva poco espacio (el indicador se lleva el ancho; aplicar lo mismo en Escala de valoración). Límites: indicador 250, observaciones 500 (el Figma dice 100, pero los datos reales llegan a 180). Avisos arriba mientras se trabaja (ámbar) y en rojo tras "Finalizar"; son requisito para finalizar. Centro de datos: LISTA_DE_COTEJO y ESCALA_DE_VALORACION = una fila por elemento con los indicadores 1..10 en columnas, en el orden del export de SharePoint (escala: Consolidado_n, En desarrollo_n, En inicio_n, No evidenciado_n, Observaciones_n, Errores_n = dpl_puntajeconerrores); la lista por indicador queda como "· indicadores".
-- Centro de datos = listas de SharePoint: columnas en el orden del Excel `DISEÑA+.xlsx` (OneDrive, carpeta Sharepoint). Una fila por elemento en CONSOLIDADO_RUBRICAS, LISTA_DE_COTEJO, ESCALA_DE_VALORACION y MATRIZ_SN_RUBRICA (preguntas 1..10 agrupadas por campo); la lista por ítem queda como «· criterios / indicadores / preguntas». Las columnas de revisión de SharePoint (Comentario*, *_Check, *_Hora, DocyAse) no se copian: están en los comentarios. Filas en orden de creación (lo nuevo al final); columnas redimensionables (se recuerda por navegador). Competencias = 2 listas: PROGRAMAS (`dpl_programa` + `dpl_cursoid`) y COMPETENCIAS (antes COMPTENCIAS_PARA MAPEO en SharePoint; (`dpl_competencia` + curso/programa/nivel/evidencias); `schema-competencias-sp.sql` y triggers mantienen `dpl_cursoprograma` y `dpl_cursoprogramacompetencia` (que leen Rúbricas y el curso). Las referencias elegibles se muestran con su código (C14, U69, P004).
+- Centro de datos = listas de SharePoint: columnas en el orden del Excel `DISEÑA+.xlsx` (OneDrive, carpeta Sharepoint). Una fila por elemento en CONSOLIDADO_RUBRICAS, LISTA_DE_COTEJO, ESCALA_DE_VALORACION y MATRIZ_SN_RUBRICA (preguntas 1..10 agrupadas por campo); la lista por ítem queda como «· criterios / indicadores» (Matriz no: todo se maneja en MATRIZ_SN_RUBRICA; escribir en las columnas de la siguiente pregunta libre la crea). TAXONOMIA_MATRIZ_SN_RUBRICA es solo lectura (catálogo fijo). Las columnas de revisión de SharePoint (Comentario*, *_Check, *_Hora, DocyAse) no se copian: están en los comentarios. Filas en orden de creación (lo nuevo al final); columnas redimensionables (se recuerda por navegador). Competencias = 2 listas: PROGRAMAS (`dpl_programa` + `dpl_cursoid`) y COMPETENCIAS (antes COMPTENCIAS_PARA MAPEO en SharePoint; (`dpl_competencia` + curso/programa/nivel/evidencias); `schema-competencias-sp.sql` y triggers mantienen `dpl_cursoprograma` y `dpl_cursoprogramacompetencia` (que leen Rúbricas y el curso). Las referencias elegibles se muestran con su código (C14, U69, P004).
 - Centro de datos: columnas movibles (arrastrar el encabezado) y redimensionables, recordadas por lista en el navegador, con "Restablecer columnas". Los textos con formato se editan en un panel ancho con guardado automático y Anterior/Siguiente (Alt+↑/↓). Los datos de curso/unidad/sesión quedan bloqueados (se corrigen en su lista); los criterios/indicadores/preguntas en columnas sí se editan (`destino` en CONTEXTO).
 - Centro de datos: selección de filas (casillas a la izquierda, Shift+clic para un rango, marcar todas las visibles) y "Eliminar" en bloque (botón o Supr) con confirmación que muestra curso · modalidad · unidad · elemento de cada fila. Borrar no se puede deshacer.
 - Centro de datos: Deshacer (botón y Ctrl+Z fuera de una celda) revierte la última edición o el último pegado (hasta 30).
@@ -142,6 +143,13 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
   junta datos del curso y los reparte por elemento → flujo 2 llama a OpenAI por elemento con el
   prompt según tipo (Matriz y Escala tienen 2 prompts cada una).
 
+## Dónde quedamos (25-sep-2026)
+
+- Última sesión: pantallas de **Matriz** (con y sin rúbrica), editor compacto en dos zonas («Datos para generar» | «Indicador (+ criterio) y puntajes»), botón «Logros», MATRIZ_SN_RUBRICA como única lista de Matriz en Centro de datos (sin «· preguntas») y TAXONOMIA_MATRIZ_SN_RUBRICA bloqueada. Ingreso simulado: solo correos registrados y activos.
+- **Sin subir a GitHub**: todos esos cambios están solo en esta PC (Login, AuthContext, academico, centroDatos, CentroDatos, HubCurso, App, RecursosCurso, Icon, notificaciones, theme.css, matriz.ts, MatrizPage, MatrizForm, CLAUDE.md). Subir solo cuando Fernando diga «súbelo».
+- Por confirmar con Fernando: qué datos de «Datos para generar» se exportan en sin rúbrica; si la Unidad va en la misma línea que Taxonomía/Tipo (más bajo); propuesta de aprobadores por curso (esperando su sí); retirar pantallas antiguas (SeccionIndice, detalle/*).
+- Siguiente gran paso: IA (prompts por parte) cuando Fernando termine de pasar reglas del «cascarón».
+
 ## Pendientes
 
 - Aprobadores por curso: decidir qué revisores aprueban en cada curso (hoy fijo Monitor EA → DDA; QA y Diseña+ solo comentan). Se aprueba o devuelve el curso completo, no por instrumento.
@@ -151,8 +159,8 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 1. Importar personas y asignaciones desde un **export actualizado** de `LISTADO_CURSOS_PARA_IA`
    (`scripts/importar-usuarios.cjs`; el Excel de OneDrive está desactualizado).
 2. Definir si Monitor QA y Monitor Diseña+ deben aprobar (hoy solo comentan).
-3. Rehacer Matriz con el diseño del Figma (Lista de cotejo y Escala ya están).
-4. Ingreso real por enlace al correo (Supabase Auth) y cerrar RLS por rol.
+3. Matriz: hecha (`shared/matriz.ts`). Reglas: 1–10 indicadores; P. estándar = P. por ítem × ítems y la suma debe ser 20 (candado). Con rúbrica: tiene Criterio, 1 ítem fijo, tipo de ítem sin filtro. Sin rúbrica: la taxonomía filtra los tipos (`dpl_taxonomiaitem`), ítems 1–10. Plataforma = nombre en plataforma del tipo. Botón «Logros» (unidad y curso). Cada indicador: «Datos para generar» (unidad, eje, taxonomía, tipo, ítems) y el protagonista «Indicador (+ criterio) y puntajes», que llena la IA o el docente y es lo que se exporta (sin rúbrica también se exporta parte de lo elegido en taxonomía; con rúbrica casi no). No mostrar esa explicación en pantalla. IA pendiente: generará indicador (+ criterio) y puntajes.
+4. Ingreso real (enlace al correo o Microsoft UTP con Supabase Auth). Recién con eso se escribe y prueba el script de RLS por rol (+ script de reversa): con el ingreso simulado la base ve a todos como anónimos, así que hoy los permisos solo los aplica la app. Monitores y DDA solo comentan (no editan), salvo que el área decida otra cosa.
 5. Publicar: desplegar en Vercel (el código ya está en GitHub).
 6. Tutoriales, Manuales, Lineamientos; generación con IA. Aviso por correo/Teams al llegar una consulta de soporte.
 

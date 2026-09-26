@@ -612,7 +612,7 @@ export async function marcarCompetencia(params: {
 // ── Workflow ─────────────────────────────────────────────────────────────────
 
 export type EstadoProceso = 'en_edicion' | 'revision_monitor' | 'revision_dda' | 'aprobado'
-export type InstrumentoFlujo = 'consignas' | 'rubricas' | 'lista' | 'escala'
+export type InstrumentoFlujo = 'consignas' | 'rubricas' | 'matriz' | 'lista' | 'escala'
 
 export const ESTADO_LABEL: Record<EstadoProceso, string> = {
   en_edicion: 'En edición',
@@ -645,7 +645,7 @@ const PROCESO = 'contenido_academico'
 const PROCESO_VACIO: ProcesoCurso = {
   disponible: false,
   estado: 'en_edicion',
-  finalizado: { consignas: false, rubricas: false, lista: false, escala: false },
+  finalizado: { consignas: false, rubricas: false, matriz: false, lista: false, escala: false },
   eventos: [],
 }
 
@@ -673,6 +673,7 @@ export async function getProceso(cursoId: string): Promise<ProcesoCurso> {
     finalizado: {
       consignas: !!data?.dpl_consignas_finalizado,
       rubricas: !!data?.dpl_rubricas_finalizado,
+      matriz: !!data?.dpl_matriz_finalizado,
       lista: !!data?.dpl_lista_finalizado,
       escala: !!data?.dpl_escala_finalizado,
     },
@@ -690,7 +691,7 @@ export async function getProceso(cursoId: string): Promise<ProcesoCurso> {
 
 async function guardarProceso(
   cursoId: string,
-  cambios: Partial<{ estado: EstadoProceso; consignas: boolean; rubricas: boolean; lista: boolean; escala: boolean }>,
+  cambios: Partial<{ estado: EstadoProceso; consignas: boolean; rubricas: boolean; matriz: boolean; lista: boolean; escala: boolean }>,
 ): Promise<void> {
   const row: Record<string, unknown> = {
     dpl_cursoid: cursoId,
@@ -700,6 +701,7 @@ async function guardarProceso(
   if (cambios.estado) row.dpl_estado = cambios.estado
   if (cambios.consignas !== undefined) row.dpl_consignas_finalizado = cambios.consignas
   if (cambios.rubricas !== undefined) row.dpl_rubricas_finalizado = cambios.rubricas
+  if (cambios.matriz !== undefined) row.dpl_matriz_finalizado = cambios.matriz
   if (cambios.lista !== undefined) row.dpl_lista_finalizado = cambios.lista
   if (cambios.escala !== undefined) row.dpl_escala_finalizado = cambios.escala
   const { error } = await supabase.from('dpl_procesocurso').upsert(row, { onConflict: 'dpl_cursoid,dpl_proceso' })
@@ -770,7 +772,8 @@ export function instrumentosRequeridos(ctx: CursoContexto, rubricas: RubricasCur
     ? rubricas.elementos.length > 0
     : ctx.elementos.some(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'rubrica')
   if (usaRubrica) req.push('rubricas')
-  // Lista de cotejo: assigned to the course and chosen in at least one consigna.
+  // Matriz, Lista de cotejo, Escala: assigned to the course and chosen in at least one consigna.
+  if (ctx.permite.matriz && ctx.elementos.some(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'matriz')) req.push('matriz')
   if (ctx.permite.lista && ctx.elementos.some(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'lista')) req.push('lista')
   if (ctx.permite.escala && ctx.elementos.some(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'escala')) req.push('escala')
   return req
@@ -807,13 +810,13 @@ export async function devolverProceso(
   usuario: string,
   comentario: string,
 ): Promise<void> {
-  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false, lista: false, escala: false })
+  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false, matriz: false, lista: false, escala: false })
   await registrarEvento(cursoId, { accion: 'devuelto', rol, usuario, comentario })
 }
 
 /** Monitor EA re-opens editing (also after DDA approval). Approval starts over. */
 export async function habilitarEdicion(cursoId: string, usuario: string, comentario?: string): Promise<void> {
-  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false, lista: false, escala: false })
+  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false, matriz: false, lista: false, escala: false })
   await registrarEvento(cursoId, { accion: 'habilitado', rol: 'monitor_ea', usuario, comentario })
 }
 
@@ -989,7 +992,7 @@ export interface UsuarioRegistrado {
  * Look a person up by email. `null` table = dpl_usuario doesn't exist yet
  * (schema not applied), so callers fall back to demo sign-in.
  */
-export async function buscarUsuario(correo: string): Promise<{ tabla: boolean; usuario: UsuarioRegistrado | null }> {
+export async function buscarUsuario(correo: string): Promise<{ tabla: boolean; usuario: UsuarioRegistrado | null; inactivo?: boolean }> {
   const { data, error } = await supabase
     .from('dpl_usuario')
     .select('dpl_usuarioid, dpl_nombre, dpl_correo, dpl_roles, dpl_activo')
@@ -997,7 +1000,8 @@ export async function buscarUsuario(correo: string): Promise<{ tabla: boolean; u
     .maybeSingle()
   if (isMissingTable(error)) return { tabla: false, usuario: null }
   fail(error, 'No se pudo validar el usuario.')
-  if (!data || data.dpl_activo === false) return { tabla: true, usuario: null }
+  if (!data) return { tabla: true, usuario: null }
+  if (data.dpl_activo === false) return { tabla: true, usuario: null, inactivo: true }
   return {
     tabla: true,
     usuario: { id: data.dpl_usuarioid, nombre: data.dpl_nombre, correo: data.dpl_correo, roles: data.dpl_roles ?? [] },

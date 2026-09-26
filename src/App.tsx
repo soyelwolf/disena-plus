@@ -17,6 +17,8 @@ import CriterioForm from './pages/CriterioForm'
 import ListaCotejoPage from './pages/ListaCotejoPage'
 import IndicadoresForm from './pages/IndicadoresForm'
 import EscalaPage from './pages/EscalaPage'
+import MatrizPage from './pages/MatrizPage'
+import MatrizForm from './pages/MatrizForm'
 import IndicadoresEscalaForm from './pages/IndicadoresEscalaForm'
 import { ToastProvider } from './components/ui'
 import CentroDatos from './pages/CentroDatos'
@@ -38,6 +40,8 @@ export default function App() {
           <Route path="/cursos/:cursoId/rubricas/:sesionId/criterio/:criterioId" element={<ProtectedRoute><CriterioForm /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/lista" element={<ProtectedRoute><ListaCotejoPage /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/lista/:sesionId/editar" element={<ProtectedRoute><IndicadoresForm /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/matriz" element={<ProtectedRoute><MatrizPage /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/matriz/:sesionId/editar" element={<ProtectedRoute><MatrizForm /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/escala" element={<ProtectedRoute><EscalaPage /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/escala/:sesionId/editar" element={<ProtectedRoute><IndicadoresEscalaForm /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/admin" element={<ProtectedRoute><PanelAdmin /></ProtectedRoute>} />

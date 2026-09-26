@@ -24,7 +24,7 @@ export const REVISORES = ['monitor_ea', 'monitor_qa', 'monitor_disena', 'dda']
 export const EQUIPO_DOCENTE = ['docente', 'asesor']
 export const TODOS = [...EQUIPO_DOCENTE, ...REVISORES]
 
-const RUTA_INSTRUMENTO: Record<string, string> = { consignas: 'consignas', rubricas: 'rubricas', lista: 'lista', escala: 'escala' }
+const RUTA_INSTRUMENTO: Record<string, string> = { consignas: 'consignas', rubricas: 'rubricas', matriz: 'matriz', lista: 'lista', escala: 'escala' }
 export const PARTE: Record<string, string> = { consignas: 'Consignas', rubricas: 'Rúbricas', matriz: 'Matriz', lista: 'Lista de cotejo', escala: 'Escala de valoración' }
 
 export function rutaDe(cursoId: string, instrumento?: string | null): string {

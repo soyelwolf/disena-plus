@@ -14,9 +14,18 @@ const cargarDocs = () => (cacheDocs ??= listarDocumentos().catch(() => new Map<s
  * Reference material while working on an element: the course's Sílabo and Formato de
  * orientación (PDFs), and "Qué se evaluará" — the Formato de orientación broken down for
  * this element (QUE_SE_EVALUARA of its consigna). Shown on every instrument screen.
+ * With `logros`, also "Logros": the unit's and the course's learning outcomes (read only).
  */
-export default function RecursosCurso(props: { cursoId: string; curso: string; elemento?: string; queSeEvaluara?: string | null; compacto?: boolean }) {
-  const { cursoId, curso, elemento, queSeEvaluara, compacto } = props
+export default function RecursosCurso(props: {
+  cursoId: string
+  curso: string
+  elemento?: string
+  queSeEvaluara?: string | null
+  logros?: { unidad?: string; nombreUnidad?: string; curso?: string }
+  compacto?: boolean
+}) {
+  const { cursoId, curso, elemento, queSeEvaluara, logros, compacto } = props
+  const [verLogros, setVerLogros] = useState(false)
   const [docs, setDocs] = useState<Map<string, DocumentoCurso> | null>(null)
   const [visor, setVisor] = useState<DocumentoCurso | null>(null)
   const [verQue, setVerQue] = useState(false)
@@ -38,6 +47,11 @@ export default function RecursosCurso(props: { cursoId: string; curso: string; e
           <Icon name="target" size={15} />Qué se evaluará
         </button>
       )}
+      {logros && (
+        <button className={clase} title="Logro de la unidad y logro del curso (informativo)" onClick={() => setVerLogros(true)}>
+          <Icon name="flag" size={15} />Logros
+        </button>
+      )}
       {(['silabo', 'formato'] as TipoDocumento[]).map(t => {
         const doc = docs?.get(`${cursoId}|${t}`)
         return (
@@ -54,6 +68,21 @@ export default function RecursosCurso(props: { cursoId: string; curso: string; e
       })}
       {visor && (
         <VisorPdf titulo={`${DOCUMENTOS[visor.tipo].label} · ${curso}`} url={visor.url} nombreArchivo={nombreDescarga(visor.tipo, curso)} onClose={() => setVisor(null)} />
+      )}
+      {logros && (
+        <Drawer
+          open={verLogros}
+          className="drawer-ancho"
+          onClose={() => setVerLogros(false)}
+          title={`Logros · ${elemento ?? curso}`}
+          footer={<button className="btn btn-primary" onClick={() => setVerLogros(false)}>Cerrar</button>}
+        >
+          <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Solo informativo: úsalos como referencia al formular. Se editan en el Centro de datos.</p>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>Logro de la unidad{logros.nombreUnidad ? ` · ${logros.nombreUnidad}` : ''}</span>
+          <div className="readonly-box" style={{ whiteSpace: 'normal' }}>{logros.unidad?.trim() ? <VistaRica valor={logros.unidad} /> : '—'}</div>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>Logro del curso</span>
+          <div className="readonly-box" style={{ whiteSpace: 'normal' }}>{logros.curso?.trim() ? <VistaRica valor={logros.curso} /> : '—'}</div>
+        </Drawer>
       )}
       <Drawer
         open={verQue}
