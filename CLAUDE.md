@@ -146,7 +146,7 @@ Columnas con prefijo `dpl_` (heredado de Dataverse). Scripts, en orden: `schema.
 ## Dónde quedamos (25-sep-2026)
 
 - Última sesión: pantallas de **Matriz** (con y sin rúbrica), editor compacto en dos zonas («Datos para generar» | «Indicador (+ criterio) y puntajes»), botón «Logros», MATRIZ_SN_RUBRICA como única lista de Matriz en Centro de datos (sin «· preguntas») y TAXONOMIA_MATRIZ_SN_RUBRICA bloqueada. Ingreso simulado: solo correos registrados y activos.
-- **Sin subir a GitHub**: todos esos cambios están solo en esta PC (Login, AuthContext, academico, centroDatos, CentroDatos, HubCurso, App, RecursosCurso, Icon, notificaciones, theme.css, matriz.ts, MatrizPage, MatrizForm, CLAUDE.md). Subir solo cuando Fernando diga «súbelo».
+- Todo subido a GitHub (commit 63cff62). Próximos cambios: subir solo cuando Fernando diga «súbelo».
 - Por confirmar con Fernando: qué datos de «Datos para generar» se exportan en sin rúbrica; si la Unidad va en la misma línea que Taxonomía/Tipo (más bajo); propuesta de aprobadores por curso (esperando su sí); retirar pantallas antiguas (SeccionIndice, detalle/*).
 - Siguiente gran paso: IA (prompts por parte) cuando Fernando termine de pasar reglas del «cascarón».
 
