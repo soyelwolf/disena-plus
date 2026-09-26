@@ -10,9 +10,14 @@ import SeccionIndice from './pages/SeccionIndice'
 import PanelAdmin from './pages/PanelAdmin'
 import ElementoDetalle from './pages/detalle/ElementoDetalle'
 import Proximamente from './pages/Proximamente'
+import Soporte from './pages/Soporte'
 import ConsignasPage from './pages/ConsignasPage'
 import RubricasPage from './pages/RubricasPage'
 import CriterioForm from './pages/CriterioForm'
+import ListaCotejoPage from './pages/ListaCotejoPage'
+import IndicadoresForm from './pages/IndicadoresForm'
+import EscalaPage from './pages/EscalaPage'
+import IndicadoresEscalaForm from './pages/IndicadoresEscalaForm'
 import { ToastProvider } from './components/ui'
 import CentroDatos from './pages/CentroDatos'
 
@@ -31,6 +36,10 @@ export default function App() {
           <Route path="/cursos/:cursoId/rubricas/:sesionId/criterio" element={<ProtectedRoute><CriterioForm /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/rubricas/:sesionId/editar" element={<ProtectedRoute><CriterioForm completa /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/rubricas/:sesionId/criterio/:criterioId" element={<ProtectedRoute><CriterioForm /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/lista" element={<ProtectedRoute><ListaCotejoPage /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/lista/:sesionId/editar" element={<ProtectedRoute><IndicadoresForm /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/escala" element={<ProtectedRoute><EscalaPage /></ProtectedRoute>} />
+          <Route path="/cursos/:cursoId/escala/:sesionId/editar" element={<ProtectedRoute><IndicadoresEscalaForm /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/admin" element={<ProtectedRoute><PanelAdmin /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/:seccion" element={<ProtectedRoute><SeccionIndice /></ProtectedRoute>} />
           <Route path="/cursos/:cursoId/:seccion/:sesionId" element={<ProtectedRoute><ElementoDetalle /></ProtectedRoute>} />
@@ -48,7 +57,7 @@ export default function App() {
           />
           <Route
             path="/soporte"
-            element={<ProtectedRoute><Proximamente titulo="Soporte" icon="soporte" descripcion="Canal para reportar problemas o hacer consultas al equipo de Diseña+." /></ProtectedRoute>}
+            element={<ProtectedRoute><Soporte /></ProtectedRoute>}
           />
           <Route
             path="/datos"

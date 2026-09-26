@@ -75,10 +75,11 @@ export default function ComparadorIA(props: {
             <section key={s.titulo} className="diff-seccion">
               <h3 style={{ fontSize: 15, fontWeight: 700 }}>{s.titulo}</h3>
               {s.nota && <p className="diff-nota">{s.nota}</p>}
-              {s.campos.map(c => {
+              {s.campos.map((c, k) => {
                 const r = comparar(c.ia, c.final)
                 return (
-                  <div key={c.label} className="diff-campo">
+                  // Position as key: labels can repeat (a scale without type has three "Por defecto").
+                  <div key={k} className="diff-campo">
                     <div className="row-between">
                       <span className="field-label" style={{ marginBottom: 0 }}>{c.label}</span>
                       <span className={`regla-chip ${r.identico ? 'ok' : 'mal'}`}>{r.identico ? 'Sin cambios' : `Cambió ${r.cambio}%`}</span>

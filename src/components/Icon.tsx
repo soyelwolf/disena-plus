@@ -14,6 +14,7 @@ const PATHS = {
   arrowRight: <path d="M5 12h14m-6-6 6 6-6 6" />,
   eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
   mail: <><rect x="3" y="5" width="18" height="14" rx="2" /><path d="m3 7 9 6 9-6" /></>,
+  bell: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0" /></>,
   info: <><circle cx="12" cy="12" r="9" /><path d="M12 8h.01M11 12h1v5h1" /></>,
   alert: <><path d="M12 3 2 21h20z" /><path d="M12 10v4M12 17h.01" /></>,
   spinner: <path d="M21 12a9 9 0 1 1-6.2-8.6" />,

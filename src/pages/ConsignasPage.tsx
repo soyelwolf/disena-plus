@@ -17,10 +17,16 @@ import {
   SavingOverlay,
   useToast,
 } from '../components/ui'
+import RecursosCurso from '../components/RecursosCurso'
 import { useAuth } from '../shared/AuthContext'
 import {
   CAMPOS_CONSIGNA,
   INSTRUMENTO_VALORES,
+  PROCESO_LABEL,
+  contenidoDeElemento,
+  procesosDeInstrumento,
+  registrarIncidencia,
+  type ProcesoInstrumento,
   finalizarInstrumento,
   getActivacion,
   getComentarios,
@@ -47,6 +53,27 @@ const INSTRUMENTOS: Array<{ tipo: ReturnType<typeof tipoInstrumento>; label: str
   { tipo: null, label: 'No aplica', valor: INSTRUMENTO_VALORES.noAplica },
 ]
 
+/** "matriz con rúbrica" → "Matriz con rúbrica"; empty → "sin instrumento". */
+function nombreInstrumento(valor: string | null | undefined): string {
+  const v = (valor ?? '').toLowerCase()
+  if (!v) return 'sin instrumento'
+  if (v === INSTRUMENTO_VALORES.matrizCon) return 'Matriz con rúbrica'
+  if (v === INSTRUMENTO_VALORES.matrizSin) return 'Matriz sin rúbrica'
+  return INSTRUMENTOS.find(i => i.valor === v)?.label ?? v
+}
+
+/** Instrument change that leaves content already written without use: asks first and is logged as an incident. */
+interface CambioInstrumento {
+  el: Elemento
+  campos: Partial<ConsignaCampos>
+  antes: string | null
+  despues: string | null
+  /** Instruments with content that stop counting (their data is kept, shown as "sobrante"). */
+  afectados: Array<{ proceso: ProcesoInstrumento; cantidad: number }>
+  /** Escala normal ↔ administración: same records, different levels. */
+  cambiaTipoEscala: boolean
+}
+
 type EstadoGuardado = 'idle' | 'guardando' | 'guardado' | 'error'
 
 export default function ConsignasPage() {
@@ -64,6 +91,8 @@ export default function ConsignasPage() {
   const [requeridos, setRequeridos] = useState<string[]>(['consignas'])
   const [comentarios, setComentarios] = useState<Comentario[]>([])
   const [filtro, setFiltro] = useState<FiltroComentarios | null>(null)
+  const [cambio, setCambio] = useState<CambioInstrumento | null>(null)
+  const [motivoCambio, setMotivoCambio] = useState('')
   const [activada, setActivada] = useState<boolean | null>(null)
   // The elements list can be hidden to give the consigna the whole width (remembered per browser).
   const [listaOculta, setListaOculta] = useState(() => {
@@ -169,6 +198,48 @@ export default function ConsignasPage() {
     timer.current = setTimeout(flush, 900)
   }
 
+  /** Log the instrument change in the course history (only once the consigna already had one). */
+  const registrarCambio = (c: Omit<CambioInstrumento, 'campos'>, motivo: string) => {
+    if (!ctx || !user || !c.antes) return
+    const partes = [
+      `${c.el.nombre}: ${nombreInstrumento(c.antes)} → ${nombreInstrumento(c.despues)}.`,
+      ...c.afectados.map(a => {
+        const u = PROCESO_LABEL[a.proceso].unidad[a.cantidad === 1 ? 0 : 1]
+        return `La ${PROCESO_LABEL[a.proceso].nombre} (${a.cantidad} ${u}) quedó como sobrante: no se borró, pero deja de contar.`
+      }),
+      c.cambiaTipoEscala ? 'La escala de valoración cambia entre normal y administración: revisar sus niveles.' : '',
+      motivo.trim() ? `Motivo: ${motivo.trim()}` : '',
+    ].filter(Boolean)
+    registrarIncidencia(ctx.id, { accion: 'cambio_instrumento', instrumento: 'consignas', rol: rol.etiqueta, usuario: user.correo, comentario: partes.join(' ') })
+      .then(() => recargar())
+      .catch(err => toast(err instanceof Error ? `No se registró en el historial: ${err.message}` : 'No se registró en el historial.', 'error'))
+  }
+
+  /** Changing the instrument of an element that already has content in another one asks first. */
+  const cambiarCampos = async (el: Elemento, campos: Partial<ConsignaCampos>) => {
+    if (!('dpl_instrumento' in campos)) return editar(el, campos)
+    const antes = el.consigna?.dpl_instrumento ?? null
+    const despues = campos.dpl_instrumento ?? null
+    if ((antes ?? '').toLowerCase() === (despues ?? '').toLowerCase()) return
+    const nuevos = new Set(procesosDeInstrumento(despues))
+    let afectados: CambioInstrumento['afectados'] = []
+    let cambiaTipoEscala = false
+    if (antes) {
+      const contenido = await contenidoDeElemento(el.sesionId).catch(() => null)
+      if (contenido) {
+        afectados = procesosDeInstrumento(antes).filter(p => !nuevos.has(p) && contenido[p] > 0).map(p => ({ proceso: p, cantidad: contenido[p] }))
+        cambiaTipoEscala = nuevos.has('escala') && procesosDeInstrumento(antes).includes('escala') && contenido.escala > 0
+      }
+    }
+    if (afectados.length || cambiaTipoEscala) {
+      setMotivoCambio('')
+      setCambio({ el, campos, antes, despues, afectados, cambiaTipoEscala })
+      return
+    }
+    editar(el, campos)
+    registrarCambio({ el, antes, despues, afectados, cambiaTipoEscala }, '')
+  }
+
   const validaciones = useMemo(
     () => new Map((ctx?.elementos ?? []).map(e => [e.sesionId, validarConsigna(e.consigna)])),
     [ctx],
@@ -188,8 +259,8 @@ export default function ConsignasPage() {
   const puedeHabilitar = esMonitor && proceso.disponible && proceso.estado === 'aprobado'
   // Everything depends on the person's role in THIS course (LISTADO_CURSOS_PARA_IA):
   // Monitor EA / DDA open and resolve comments; the teaching team replies; all can read.
-  const puedeComentar = (rol.monitor || rol.dda) && proceso.estado !== 'aprobado'
-  const puedeResponder = rol.monitor || rol.dda || rol.editar
+  const puedeComentar = rol.revisor && proceso.estado !== 'aprobado'
+  const puedeResponder = rol.revisor || rol.editar
   const campoLabel = (campo: string) =>
     campo === 'dpl_instrumento' ? 'Instrumento' : campo === 'adjuntos' ? 'Datos adjuntos' : campo === CAMPO_GENERAL ? 'General' : CAMPOS_CONSIGNA.find(c => c.key === campo)?.label.replace(' (Opcional)', '') ?? campo
   const elDeConsigna = (id: string) => ctx.elementos.find(e => e.consigna?.dpl_consignaid === id)
@@ -370,9 +441,10 @@ export default function ConsignasPage() {
             <EditorConsigna
               key={el.sesionId}
               el={el}
+              recursos={<RecursosCurso cursoId={ctx.id} curso={ctx.nombre} elemento={el.nombre} queSeEvaluara={el.consigna?.dpl_queseevaluara} />}
               editable={puede}
               mostrarErrores={mostrarErrores}
-              onChange={campos => editar(el, campos)}
+              onChange={campos => void cambiarCampos(el, campos)}
               onIA={() => setModal('ia')}
               onComparar={propuestas.has(el.sesionId) ? () => setComparar(true) : undefined}
               comentarios={comentarios}
@@ -384,6 +456,52 @@ export default function ConsignasPage() {
         </div>
       )}
 
+      <Modal
+        open={!!cambio}
+        title={`¿Cambiar el instrumento de ${cambio?.el.nombre ?? ''}?`}
+        onClose={() => setCambio(null)}
+        actions={
+          <>
+            <button className="btn btn-outline" onClick={() => setCambio(null)}>No, mantener {nombreInstrumento(cambio?.antes)}</button>
+            <button
+              className="btn btn-primary"
+              onClick={() => {
+                if (!cambio) return
+                editar(cambio.el, cambio.campos)
+                registrarCambio(cambio, motivoCambio)
+                setCambio(null)
+                toast('Instrumento cambiado. Quedó registrado en el historial del curso.')
+              }}
+            >
+              Sí, cambiar a {nombreInstrumento(cambio?.despues)}
+            </button>
+          </>
+        }
+      >
+        {cambio && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <span>
+              Pasará de <b>{nombreInstrumento(cambio.antes)}</b> a <b>{nombreInstrumento(cambio.despues)}</b>.
+            </span>
+            <div className="borrar-detalle" style={{ borderLeftColor: 'var(--color-warning)', margin: 0 }}>
+              {cambio.afectados.map(a => (
+                <span key={a.proceso}>
+                  Este elemento ya tiene una <b>{PROCESO_LABEL[a.proceso].nombre}</b> con <b>{a.cantidad} {PROCESO_LABEL[a.proceso].unidad[a.cantidad === 1 ? 0 : 1]}</b>.
+                  No se borra: queda guardada como «sobrante» y deja de contar para finalizar. Si vuelves a elegirla, reaparece completa.
+                </span>
+              ))}
+              {cambio.cambiaTipoEscala && (
+                <span>La escala ya tiene indicadores: al cambiar entre escala normal y de administración cambian los niveles, revísalos después.</span>
+              )}
+            </div>
+            <label className="field-label" style={{ marginBottom: 0 }}>
+              Motivo del cambio <span style={{ fontWeight: 400, color: 'var(--color-text-muted)' }}>(opcional, lo verá todo el equipo del curso)</span>
+              <textarea className="textarea" style={{ minHeight: 70, marginTop: 6, fontWeight: 400 }} maxLength={500} value={motivoCambio} onChange={e => setMotivoCambio(e.target.value)} placeholder="Ej.: acordado con el Monitor EA en la revisión del 25/09" />
+            </label>
+            <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>El cambio quedará en el historial del curso («Flujo de trabajo») con tu nombre, rol, fecha y hora.</span>
+          </div>
+        )}
+      </Modal>
       <Modal
         open={modal === 'confirmar'}
         title="¿Finalizar edición general de consignas?"
@@ -469,7 +587,7 @@ export default function ConsignasPage() {
         }}
         puedeComentar={puedeComentar}
         puedeResponder={puedeResponder}
-        puedeResolver={rol.monitor || rol.dda}
+        puedeResolver={rol.revisor}
         lado={rol.lado}
         etiquetaRol={rol.etiqueta}
         onIrItem={irItem}
@@ -511,9 +629,11 @@ interface EditorProps {
   campoActivo: string | null
   /** campo undefined = every comment of this consigna. */
   onComentarios: (campo?: string, cita?: string) => void
+  /** Sílabo, Formato de orientación and "Qué se evaluará" of this element. */
+  recursos?: React.ReactNode
 }
 
-function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, onComparar, comentarios, puedeComentar, campoActivo, onComentarios }: EditorProps) {
+function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, onComparar, comentarios, puedeComentar, campoActivo, onComentarios, recursos }: EditorProps) {
   const consignaId = el.consigna?.dpl_consignaid
   const pendientes = comentarios.filter(k => !k.padreId && !k.resuelto && k.entidadId === consignaId).length
   const boton = (campo: string, label: string) =>
@@ -529,7 +649,8 @@ function EditorConsigna({ el, editable, mostrarErrores, onChange, onIA, onCompar
     <section className="panel consigna-editor">
       <div className="row-between" style={{ paddingBottom: 18, borderBottom: '1px solid var(--color-border)' }}>
         <h2 style={{ fontSize: 20, fontWeight: 700 }}>Consigna: {el.nombre}</h2>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+          {recursos}
           {consignaId ? (
             <button className="btn btn-outline" style={{ height: 42 }} onClick={() => onComentarios()}>
               <Icon name="comment" size={16} />{pendientes ? `Comentarios pendientes (${pendientes})` : 'Comentarios'}

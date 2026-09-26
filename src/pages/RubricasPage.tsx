@@ -7,12 +7,14 @@ import { BotonComentarios, CAMPO_GENERAL, PanelComentarios, ZonaComentable, dato
 import { VistaRica } from '../components/TextoEnriquecido'
 import { Link } from 'react-router-dom'
 import { Breadcrumbs, Cargando, CursoHeader, Drawer, ErrorPanel, Modal, SavingOverlay, useToast } from '../components/ui'
+import RecursosCurso from '../components/RecursosCurso'
 import { useAuth } from '../shared/AuthContext'
 import {
   NIVELES,
   PUNTAJE_OBJETIVO,
   eliminarCriterio,
   finalizarInstrumento,
+  registrarIncidencia,
   getActivacion,
   getComentarios,
   getPropuestasIA,
@@ -140,8 +142,8 @@ export default function RubricasPage() {
   const puedeHabilitar = esMonitor && proceso.disponible && proceso.estado === 'aprobado'
   // Everything depends on the person's role in THIS course (LISTADO_CURSOS_PARA_IA):
   // Monitor EA / DDA open and resolve comments; the teaching team replies; all can read.
-  const puedeComentar = (rol.monitor || rol.dda) && proceso.estado !== 'aprobado'
-  const puedeResponder = rol.monitor || rol.dda || rol.editar
+  const puedeComentar = rol.revisor && proceso.estado !== 'aprobado'
+  const puedeResponder = rol.revisor || rol.editar
   const pendientesRubrica = comentarios.filter(k => !k.padreId && !k.resuelto).length
   const buscarCriterio = (id: string) => {
     for (const r of datos.elementos) {
@@ -185,6 +187,9 @@ export default function RubricasPage() {
     setTrabajando(true)
     try {
       await quitarRubricaElemento(r)
+      // Removing deletes the content: it goes to the course history as an incident.
+      if (user) await registrarIncidencia(ctx.id, { accion: 'quitado', instrumento: 'rubricas', rol: rol.etiqueta, usuario: user.correo, comentario: `${r.elemento.nombre}: se eliminó su rúbrica${r.criterios.length ? ` con ${r.criterios.length} criterios` : ''} (la consigna ahora usa ${r.elemento.consigna?.dpl_instrumento ?? 'otro instrumento'}).` })
+      await recargar()
       await cargar()
       toast(`${r.elemento.nombre} se quitó de Rúbricas`)
     } catch (err) {
@@ -243,6 +248,8 @@ export default function RubricasPage() {
   }
 
   const competenciasPrograma = datos.competencias.filter(c => !programa || c.programaId === programa)
+  // Programmes of the course with no competence loaded (Centro de datos → COMPETENCIAS): warn, the admin must load them.
+  const sinCompetencias = new Set(ctx.programas.filter(p => !datos.competencias.some(c => c.programaId === p.id)).map(p => p.id))
 
   return (
     <div className="page">
@@ -286,6 +293,11 @@ export default function RubricasPage() {
               onClick={() => setPrograma(p.id)}
             >
               {p.nombre}
+              {sinCompetencias.has(p.id) && (
+                <span className="tab-sin-comp" title="Este programa no tiene competencias cargadas para el curso">
+                  <Icon name="info" size={12} strokeWidth={2.4} />
+                </span>
+              )}
               {intentoFinalizar && !todoCompleto ? (
                 <span className="tab-warn" title="Toda la información de los elementos de evaluación debe completarse">
                   <Icon name="alert" size={12} strokeWidth={2.4} />
@@ -298,6 +310,18 @@ export default function RubricasPage() {
         </div>
       )}
 
+      {programa && sinCompetencias.has(programa) && datos.elementos.length > 0 && (
+        <div className="alert-banner alert-warn" style={{ justifyContent: 'space-between', padding: '12px 14px', flexWrap: 'wrap', gap: 10 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, textAlign: 'left' }}>
+            <Icon name="alert" size={16} />
+            <span>
+              El programa <b>{ctx.programas.find(p => p.id === programa)?.nombre}</b> no tiene competencias cargadas para este curso, así que sus criterios no tienen competencias
+              para marcar. Todo programa suele tener al menos una: comunícate con el administrador para que las cargue.
+            </span>
+          </span>
+          <Link className="btn btn-outline btn-sm" to="/soporte"><Icon name="soporte" size={15} />Escribir a soporte</Link>
+        </div>
+      )}
       {!puede && motivo && (
         <div className="alert-banner alert-info" style={{ justifyContent: 'flex-start', padding: '10px 14px' }}>
           <Icon name="info" size={16} />{motivo}
@@ -352,7 +376,8 @@ export default function RubricasPage() {
         <section key={r.elemento.sesionId} className="panel rubrica-card animate-in">
           <div className="row-between">
             <h2 style={{ fontSize: 18, fontWeight: 700 }}>{r.elemento.nombre}</h2>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              <RecursosCurso cursoId={ctx.id} curso={ctx.nombre} elemento={r.elemento.nombre} queSeEvaluara={r.elemento.consigna?.dpl_queseevaluara} />
               {propuestas.has(r.elemento.sesionId) && (
                 <button className="btn btn-outline btn-sm" style={{ marginRight: 8 }} onClick={() => setCompararDe(r)}>
                   <Icon name="sparkles" size={14} />Comparar con propuesta IA
@@ -533,7 +558,7 @@ export default function RubricasPage() {
         }}
         puedeComentar={puedeComentar}
         puedeResponder={puedeResponder}
-        puedeResolver={rol.monitor || rol.dda}
+        puedeResolver={rol.revisor}
         lado={rol.lado}
         etiquetaRol={rol.etiqueta}
         onIrItem={irItem}
@@ -613,7 +638,8 @@ export default function RubricasPage() {
 
 // ── Pieces ───────────────────────────────────────────────────────────────────
 
-function AgregarCriterio({ onManual, onIA }: { onManual: () => void; onIA: () => void }) {
+/** "Agregar …" dropdown: con uso de IA / de forma manual (also used by Lista de cotejo). */
+export function AgregarCriterio({ onManual, onIA, label = 'Agregar criterio' }: { onManual: () => void; onIA: () => void; label?: string }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -625,7 +651,7 @@ function AgregarCriterio({ onManual, onIA }: { onManual: () => void; onIA: () =>
   return (
     <div style={{ position: 'relative', alignSelf: 'flex-start' }} ref={ref}>
       <button className="btn btn-outline" style={{ height: 38 }} aria-expanded={open} onClick={() => setOpen(o => !o)}>
-        <Icon name={open ? 'chevronUp' : 'chevronDown'} size={16} strokeWidth={2} />Agregar criterio
+        <Icon name={open ? 'chevronUp' : 'chevronDown'} size={16} strokeWidth={2} />{label}
       </button>
       {open && (
         <div className="menu" style={{ left: 0, right: 'auto' }}>
@@ -779,7 +805,8 @@ function CriterioAcordeon(props: CriterioProps) {
   )
 }
 
-function GenerarIA({ elemento, onClose, onGenerar }: { elemento: RubricaElemento | null; onClose: () => void; onGenerar: () => void }) {
+/** "Generar contenido con IA" drawer (also used by Lista de cotejo). */
+export function GenerarIA({ elemento, onClose, onGenerar }: { elemento: object | null; onClose: () => void; onGenerar: () => void }) {
   const [modo, setModo] = useState<'auto' | 'contexto' | null>(null)
   const [texto, setTexto] = useState('')
   useEffect(() => {

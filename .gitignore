@@ -47,3 +47,6 @@ supabase/seed.sql
 
 # Personal data prepared for import (names/emails) — never commit
 importacion/
+
+# Personal photo shown in Soporte (kept only on this computer)
+public/soporte-fbustamant.png

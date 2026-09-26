@@ -9,6 +9,7 @@
 
 import { supabase } from './supabaseClient'
 import { estaVacio, longitud } from './textoRico'
+import { EQUIPO_DOCENTE, PARTE, REVISORES, TODOS, notificar, rutaDe } from './notificaciones'
 
 // ── Limits & instrument catalogue ────────────────────────────────────────────
 
@@ -85,6 +86,8 @@ export interface ConsignaRow {
   dpl_anexo: string | null
   dpl_instrumento: string | null
   dpl_sesionid: string
+  /** QUE_SE_EVALUARA: the Formato de orientación broken down for this element (reference, read only). */
+  dpl_queseevaluara?: string | null
 }
 
 export interface Elemento {
@@ -149,7 +152,7 @@ export async function getCursoContexto(cursoId: string): Promise<CursoContexto> 
       const { data: cs, error: e5 } = await supabase
         .from('dpl_consigna')
         .select(
-          'dpl_consignaid, dpl_idconsignatext, dpl_indicaciongeneral, dpl_indicacionesespecificas, dpl_recomendaciones, dpl_anexo, dpl_instrumento, dpl_sesionid',
+          'dpl_consignaid, dpl_idconsignatext, dpl_indicaciongeneral, dpl_indicacionesespecificas, dpl_recomendaciones, dpl_anexo, dpl_instrumento, dpl_sesionid, dpl_queseevaluara',
         )
         .in('dpl_sesionid', sesionIds)
       fail(e5, 'No se pudieron cargar las consignas.')
@@ -609,7 +612,7 @@ export async function marcarCompetencia(params: {
 // ── Workflow ─────────────────────────────────────────────────────────────────
 
 export type EstadoProceso = 'en_edicion' | 'revision_monitor' | 'revision_dda' | 'aprobado'
-export type InstrumentoFlujo = 'consignas' | 'rubricas'
+export type InstrumentoFlujo = 'consignas' | 'rubricas' | 'lista' | 'escala'
 
 export const ESTADO_LABEL: Record<EstadoProceso, string> = {
   en_edicion: 'En edición',
@@ -620,7 +623,8 @@ export const ESTADO_LABEL: Record<EstadoProceso, string> = {
 
 export interface EventoProceso {
   id: string
-  accion: 'finalizado' | 'enviado' | 'aprobado' | 'devuelto' | 'habilitado'
+  /** cambio_instrumento / quitado: incidents the whole course team should know about. */
+  accion: 'finalizado' | 'enviado' | 'aprobado' | 'devuelto' | 'habilitado' | 'cambio_instrumento' | 'quitado'
   instrumento: string | null
   rol: string | null
   usuario: string | null
@@ -641,7 +645,7 @@ const PROCESO = 'contenido_academico'
 const PROCESO_VACIO: ProcesoCurso = {
   disponible: false,
   estado: 'en_edicion',
-  finalizado: { consignas: false, rubricas: false },
+  finalizado: { consignas: false, rubricas: false, lista: false, escala: false },
   eventos: [],
 }
 
@@ -669,6 +673,8 @@ export async function getProceso(cursoId: string): Promise<ProcesoCurso> {
     finalizado: {
       consignas: !!data?.dpl_consignas_finalizado,
       rubricas: !!data?.dpl_rubricas_finalizado,
+      lista: !!data?.dpl_lista_finalizado,
+      escala: !!data?.dpl_escala_finalizado,
     },
     eventos: (ev ?? []).map(e => ({
       id: e.dpl_procesoeventoid,
@@ -684,7 +690,7 @@ export async function getProceso(cursoId: string): Promise<ProcesoCurso> {
 
 async function guardarProceso(
   cursoId: string,
-  cambios: Partial<{ estado: EstadoProceso; consignas: boolean; rubricas: boolean }>,
+  cambios: Partial<{ estado: EstadoProceso; consignas: boolean; rubricas: boolean; lista: boolean; escala: boolean }>,
 ): Promise<void> {
   const row: Record<string, unknown> = {
     dpl_cursoid: cursoId,
@@ -694,6 +700,8 @@ async function guardarProceso(
   if (cambios.estado) row.dpl_estado = cambios.estado
   if (cambios.consignas !== undefined) row.dpl_consignas_finalizado = cambios.consignas
   if (cambios.rubricas !== undefined) row.dpl_rubricas_finalizado = cambios.rubricas
+  if (cambios.lista !== undefined) row.dpl_lista_finalizado = cambios.lista
+  if (cambios.escala !== undefined) row.dpl_escala_finalizado = cambios.escala
   const { error } = await supabase.from('dpl_procesocurso').upsert(row, { onConflict: 'dpl_cursoid,dpl_proceso' })
   fail(error, 'No se pudo actualizar el estado del proceso.')
 }
@@ -712,6 +720,47 @@ async function registrarEvento(
     dpl_comentario: e.comentario ?? null,
   })
   fail(error, 'No se pudo registrar el evento.')
+  void notificarEvento(cursoId, e)
+}
+
+/** Who hears about each event of the course, according to their role in it. */
+function notificarEvento(cursoId: string, e: { accion: EventoProceso['accion']; instrumento?: string; rol?: string; usuario: string; comentario?: string }): Promise<void> {
+  const parte = e.instrumento ? PARTE[e.instrumento] ?? e.instrumento : ''
+  const base = { cursoId, actorCorreo: e.usuario, ruta: rutaDe(cursoId, e.instrumento) }
+  const quien = e.rol === 'dda' ? 'DDA' : 'Monitor EA'
+  switch (e.accion) {
+    case 'finalizado':
+      return notificar({ ...base, roles: REVISORES, tipo: 'finalizado', titulo: c => `${c}: se finalizó ${parte}`, detalle: 'El docente terminó esta parte; puede seguir editando hasta que aprueben.' })
+    case 'enviado':
+      return notificar({ ...base, ruta: rutaDe(cursoId), roles: REVISORES, tipo: 'enviado', titulo: c => `${c}: listo para revisión`, detalle: 'Todas las partes del diseño de contenido académico quedaron finalizadas.' })
+    case 'aprobado':
+      return notificar({
+        ...base,
+        ruta: rutaDe(cursoId),
+        roles: [...EQUIPO_DOCENTE, e.rol === 'dda' ? 'monitor_ea' : 'dda'],
+        tipo: 'aprobado',
+        titulo: c => `${c}: aprobado por ${quien}`,
+        detalle: e.rol === 'dda' ? 'Con los dos checks, el proceso quedó cerrado.' : 'Falta la aprobación de DDA.',
+      })
+    case 'devuelto':
+      return notificar({ ...base, ruta: rutaDe(cursoId), roles: [...EQUIPO_DOCENTE, ...REVISORES], tipo: 'devuelto', titulo: c => `${c}: devuelto por ${quien}`, detalle: e.comentario ?? 'Se habilitó la edición para hacer los cambios.' })
+    case 'habilitado':
+      return notificar({ ...base, ruta: rutaDe(cursoId), roles: [...EQUIPO_DOCENTE, 'dda'], tipo: 'habilitado', titulo: c => `${c}: el Monitor EA habilitó la edición`, detalle: e.comentario ?? 'La aprobación empieza de nuevo.' })
+    case 'cambio_instrumento':
+    case 'quitado':
+      return notificar({ ...base, roles: TODOS, tipo: 'incidencia', titulo: c => `${c}: incidencia${parte ? ` en ${parte}` : ''}`, detalle: e.comentario ?? null })
+  }
+}
+
+/**
+ * Incident in the course history (seen by everyone in "Flujo de trabajo"), e.g. a
+ * consigna changed its instrument and an instrument already filled in stopped counting.
+ */
+export async function registrarIncidencia(
+  cursoId: string,
+  e: { accion: 'cambio_instrumento' | 'quitado'; instrumento: string; rol: string; usuario: string; comentario: string },
+): Promise<void> {
+  await registrarEvento(cursoId, e)
 }
 
 /** Which instruments this course must finalize before the process goes to review. */
@@ -721,6 +770,9 @@ export function instrumentosRequeridos(ctx: CursoContexto, rubricas: RubricasCur
     ? rubricas.elementos.length > 0
     : ctx.elementos.some(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'rubrica')
   if (usaRubrica) req.push('rubricas')
+  // Lista de cotejo: assigned to the course and chosen in at least one consigna.
+  if (ctx.permite.lista && ctx.elementos.some(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'lista')) req.push('lista')
+  if (ctx.permite.escala && ctx.elementos.some(e => tipoInstrumento(e.consigna?.dpl_instrumento) === 'escala')) req.push('escala')
   return req
 }
 
@@ -755,13 +807,13 @@ export async function devolverProceso(
   usuario: string,
   comentario: string,
 ): Promise<void> {
-  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false })
+  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false, lista: false, escala: false })
   await registrarEvento(cursoId, { accion: 'devuelto', rol, usuario, comentario })
 }
 
 /** Monitor EA re-opens editing (also after DDA approval). Approval starts over. */
 export async function habilitarEdicion(cursoId: string, usuario: string, comentario?: string): Promise<void> {
-  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false })
+  await guardarProceso(cursoId, { estado: 'en_edicion', consignas: false, rubricas: false, lista: false, escala: false })
   await registrarEvento(cursoId, { accion: 'habilitado', rol: 'monitor_ea', usuario, comentario })
 }
 
@@ -851,6 +903,36 @@ export async function agregarComentario(params: {
   })
   if (error && /column|schema cache/i.test(error.message)) throw new Error(FALTA_SCRIPT_COMENTARIOS)
   fail(error, 'No se pudo guardar el comentario.')
+  void notificarComentario(params)
+}
+
+/** A reviewer's new comment reaches the teaching team; a reply reaches whoever wrote the comment. */
+async function notificarComentario(p: { cursoId: string; instrumento: InstrumentoFlujo; padreId?: string | null; lado: LadoComentario; autor: string; correo: string; rol: string; texto: string }): Promise<void> {
+  const parte = PARTE[p.instrumento] ?? p.instrumento
+  const detalle = p.texto.length > 160 ? `${p.texto.slice(0, 157)}…` : p.texto
+  const base = { cursoId: p.cursoId, actorCorreo: p.correo, ruta: rutaDe(p.cursoId, p.instrumento), detalle }
+  if (!p.padreId) {
+    if (p.lado === 'docente') return
+    return notificar({ ...base, roles: EQUIPO_DOCENTE, tipo: 'comentario', titulo: c => `${c}: ${p.rol || 'Un revisor'} comentó en ${parte}` })
+  }
+  const { data: padre } = await supabase.from('dpl_comentario').select('dpl_correoautor').eq('dpl_comentarioid', p.padreId).maybeSingle()
+  return notificar({
+    ...base,
+    correos: padre?.dpl_correoautor ? [padre.dpl_correoautor as string] : [],
+    // A reviewer answering in a thread: the teaching team needs to see it too.
+    roles: p.lado === 'docente' ? [] : EQUIPO_DOCENTE,
+    tipo: 'respuesta',
+    titulo: c => `${c}: ${p.autor} respondió un comentario en ${parte}`,
+  })
+}
+
+/** Open (unresolved) comment threads of the course, per part. */
+export async function comentariosPendientes(cursoId: string): Promise<Record<string, number>> {
+  const { data, error } = await supabase.from('dpl_comentario').select('dpl_instrumento').eq('dpl_cursoid', cursoId).is('dpl_padreid', null).eq('dpl_resuelto', false)
+  if (error) return {}
+  const res: Record<string, number> = {}
+  for (const c of data ?? []) res[c.dpl_instrumento as string] = (res[c.dpl_instrumento as string] ?? 0) + 1
+  return res
 }
 
 /** Only the author of a comment marks it resolved (or opens it again). */
@@ -922,8 +1004,7 @@ export async function buscarUsuario(correo: string): Promise<{ tabla: boolean; u
   }
 }
 
-/** Course ids assigned to a user (any role). */
-/** Roles of a person in one course (asignado, docente, monitor_ea, dda). */
+/** Roles of a person in one course (asignado, docente, asesor, monitor_ea, monitor_qa, monitor_disena, dda). */
 export async function getRolesEnCurso(usuarioId: string, cursoId: string): Promise<string[]> {
   const { data, error } = await supabase.from('dpl_cursoasignacion').select('dpl_rol').eq('dpl_usuarioid', usuarioId).eq('dpl_cursoid', cursoId)
   if (isMissingTable(error)) return []
@@ -931,8 +1012,9 @@ export async function getRolesEnCurso(usuarioId: string, cursoId: string): Promi
   return [...new Set((data ?? []).map(r => r.dpl_rol as string))]
 }
 
+/** Course ids a user sees: those where they are "Persona Asignada". */
 export async function getCursosAsignados(usuarioId: string): Promise<Set<string>> {
-  const { data, error } = await supabase.from('dpl_cursoasignacion').select('dpl_cursoid').eq('dpl_usuarioid', usuarioId)
+  const { data, error } = await supabase.from('dpl_cursoasignacion').select('dpl_cursoid').eq('dpl_usuarioid', usuarioId).eq('dpl_rol', 'asignado')
   if (isMissingTable(error)) return new Set()
   fail(error, 'No se pudieron cargar tus cursos asignados.')
   return new Set((data ?? []).map(r => r.dpl_cursoid as string))
@@ -1027,9 +1109,10 @@ export async function getCriteriosDeElemento(sesionId: string): Promise<Criterio
 // ── Activation ("¿Qué proceso activarás?") ───────────────────────────────────
 // Mirrors the Power Automate CONSOLIDADO_INPUTS_* flows: the administrator
 // enables processes per course (Permite_*); the teacher presses ACTIVAR once
-// per process, which creates that process's rows from the course data and
-// marks it done (IA_Para*_Corrido). Nothing is copied: rows point at the
-// course/unit/session, so the data stays in one place.
+// per process, which pulls the course data into that process (one row per
+// element) and marks it done in Activado_*. The IA is a separate step, run
+// inside each process element by element — IA_Para*_Corrido is not used for
+// activation anymore. Nothing is copied: rows point at the course/unit/session.
 
 export type ProcesoActivable = 'consignas' | 'rubrica' | 'matriz' | 'lista' | 'escala'
 
@@ -1038,13 +1121,22 @@ export interface EstadoActivacion {
   activado: boolean
 }
 
-const COLUMNA_ACTIVADO: Record<ProcesoActivable, string[]> = {
-  consignas: ['dpl_ia_consigna_corrido'],
-  rubrica: ['dpl_ia_rubrica_corrido'],
+/** Activado_* of dpl_curso: the course data was pulled into the process (schema-activacion.sql). */
+const COLUMNA_ACTIVADO: Record<ProcesoActivable, string> = {
+  consignas: 'dpl_activado_consignas',
+  rubrica: 'dpl_activado_rubrica',
+  matriz: 'dpl_activado_matriz',
+  lista: 'dpl_activado_lista',
+  escala: 'dpl_activado_escala',
+}
+/** Before schema-activacion.sql, activation was stored in the IA columns: read them as a fallback. */
+const COLUMNA_ACTIVADO_ANTIGUA: Record<ProcesoActivable, string> = {
+  consignas: 'dpl_ia_consigna_corrido',
+  rubrica: 'dpl_ia_rubrica_corrido',
   // Permite_Matriz_CN / IA_ParaMatrizConRubrica are no longer used: one Matriz process (SN).
-  matriz: ['dpl_ia_matrizsinrubrica_corrido'],
-  lista: ['dpl_ia_lista_corrido'],
-  escala: ['dpl_ia_escala_corrido'],
+  matriz: 'dpl_ia_matrizsinrubrica_corrido',
+  lista: 'dpl_ia_lista_corrido',
+  escala: 'dpl_ia_escala_corrido',
 }
 
 /** Permite_* check of LISTADO_CURSOS_PARA_IA for each process. */
@@ -1067,7 +1159,7 @@ export async function getActivacion(ctx: CursoContexto): Promise<Record<ProcesoA
   fail(error, 'No se pudo cargar el estado de activación.')
   const est = (p: ProcesoActivable, permite: boolean): EstadoActivacion => ({
     asignado: permite,
-    activado: COLUMNA_ACTIVADO[p].some(c => !!data?.[c]),
+    activado: data && COLUMNA_ACTIVADO[p] in data ? !!data[COLUMNA_ACTIVADO[p]] : !!data?.[COLUMNA_ACTIVADO_ANTIGUA[p]],
   })
   return {
     consignas: est('consignas', ctx.permite.consignas),
@@ -1091,6 +1183,62 @@ const TABLA_CABECERA: Record<Exclude<ProcesoActivable, 'consignas'>, { tabla: st
   matriz: { tabla: 'dpl_matriz', nombre: 'Matriz' },
   lista: { tabla: 'dpl_listacotejo', nombre: 'Lista de cotejo' },
   escala: { tabla: 'dpl_escalavaloracion', nombre: 'Escala de valoración' },
+}
+
+export type ProcesoInstrumento = Exclude<ProcesoActivable, 'consignas'>
+
+/** Processes that use a consigna's instrument value (e.g. "matriz con rúbrica" → rubrica + matriz). */
+export function procesosDeInstrumento(valor: string | null | undefined): ProcesoInstrumento[] {
+  const v = (valor ?? '').toLowerCase()
+  return (Object.keys(INSTRUMENTOS_DE) as ProcesoInstrumento[]).filter(p => INSTRUMENTOS_DE[p].includes(v))
+}
+
+export const PROCESO_LABEL: Record<ProcesoInstrumento, { nombre: string; unidad: [string, string] }> = {
+  rubrica: { nombre: 'rúbrica', unidad: ['criterio', 'criterios'] },
+  matriz: { nombre: 'matriz', unidad: ['pregunta', 'preguntas'] },
+  lista: { nombre: 'lista de cotejo', unidad: ['indicador', 'indicadores'] },
+  escala: { nombre: 'escala de valoración', unidad: ['indicador', 'indicadores'] },
+}
+
+/** What an element already has in each instrument (criteria, questions, indicators). */
+export async function contenidoDeElemento(sesionId: string): Promise<Record<ProcesoInstrumento, number>> {
+  const hijos: Record<ProcesoInstrumento, { items: string; pk: string }> = {
+    rubrica: { items: 'dpl_rubricacriterio', pk: 'dpl_rubricaid' },
+    matriz: { items: 'dpl_matrizpregunta', pk: 'dpl_matrizid' },
+    lista: { items: 'dpl_listacotejoindicador', pk: 'dpl_listacotejoid' },
+    escala: { items: 'dpl_escalaindicador', pk: 'dpl_escalavaloracionid' },
+  }
+  const res: Record<ProcesoInstrumento, number> = { rubrica: 0, matriz: 0, lista: 0, escala: 0 }
+  await Promise.all(
+    (Object.keys(hijos) as ProcesoInstrumento[]).map(async p => {
+      const { data: cab } = await supabase.from(TABLA_CABECERA[p].tabla).select(hijos[p].pk).eq('dpl_sesionid', sesionId).maybeSingle()
+      const id = cab ? (cab as unknown as Record<string, string>)[hijos[p].pk] : null
+      if (!id) return
+      const { count } = await supabase.from(hijos[p].items).select(hijos[p].pk, { count: 'exact', head: true }).eq(hijos[p].pk, id)
+      res[p] = count ?? 0
+    }),
+  )
+  return res
+}
+
+/**
+ * How many rows ACTIVAR / "Preparar nuevos" would create now for each process
+ * (same rule as activarProceso): elements without consigna, or elements whose
+ * consigna chose the instrument but have no record of it yet.
+ */
+export async function pendientesPorPreparar(ctx: CursoContexto): Promise<Record<ProcesoActivable, number>> {
+  const res: Record<ProcesoActivable, number> = { consignas: ctx.elementos.filter(e => !e.consigna).length, rubrica: 0, matriz: 0, lista: 0, escala: 0 }
+  await Promise.all(
+    (Object.keys(INSTRUMENTOS_DE) as Array<Exclude<ProcesoActivable, 'consignas'>>).map(async p => {
+      const elegidos = ctx.elementos.filter(e => INSTRUMENTOS_DE[p].includes((e.consigna?.dpl_instrumento ?? '').toLowerCase()))
+      if (!elegidos.length) return
+      const { data, error } = await supabase.from(TABLA_CABECERA[p].tabla).select('dpl_sesionid').in('dpl_sesionid', elegidos.map(e => e.sesionId))
+      if (error) return
+      const ya = new Set((data ?? []).map(r => r.dpl_sesionid as string))
+      res[p] = elegidos.filter(e => !ya.has(e.sesionId)).length
+    }),
+  )
+  return res
 }
 
 /**
@@ -1134,9 +1282,10 @@ export async function activarProceso(ctx: CursoContexto, proceso: ProcesoActivab
       }
     }
   }
-  // Activating also leaves the process ticked as assigned (Permite_*).
-  const marcas = { ...Object.fromEntries(COLUMNA_ACTIVADO[proceso].map(c => [c, true])), [COLUMNA_PERMITE[proceso]]: true }
+  // Activating also leaves the process ticked as assigned (Permite_*). The IA columns are not touched.
+  const marcas = { [COLUMNA_ACTIVADO[proceso]]: true, [COLUMNA_PERMITE[proceso]]: true }
   const { error } = await supabase.from('dpl_curso').update(marcas).eq('dpl_cursoid', ctx.id)
+  if (error && /dpl_activado_/.test(error.message)) throw new Error('Falta ejecutar supabase/schema-activacion.sql en Supabase (separa "activado" de las columnas de IA).')
   fail(error, 'No se pudo marcar el proceso como activado.')
   return creados
 }

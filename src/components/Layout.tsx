@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { rolesLabel, useAuth } from '../shared/AuthContext'
 import Icon, { type IconName } from './Icon'
 import Logo from './Logo'
+import Campana from './Campana'
 
 interface NavItem {
   to: string
@@ -67,7 +68,10 @@ export default function Layout({ children }: { children: ReactNode }) {
       <div className="shell-body">
         <header className="shell-header">
           <Logo fontSize={30} />
-          <UserMenu nombre={user.nombre} rol={rolesLabel(user.roles)} />
+          <span style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            {user.usuarioId && <Campana usuarioId={user.usuarioId} />}
+            <UserMenu nombre={user.nombre} rol={rolesLabel(user.roles)} />
+          </span>
         </header>
         <main className="shell-main">{children}</main>
       </div>

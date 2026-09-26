@@ -55,7 +55,7 @@ interface DrawerProps {
   onClose: () => void
 }
 
-export function Drawer({ open, title, children, footer, onClose }: DrawerProps) {
+export function Drawer({ open, title, children, footer, onClose, className }: DrawerProps & { className?: string }) {
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
@@ -65,7 +65,7 @@ export function Drawer({ open, title, children, footer, onClose }: DrawerProps) 
   if (!open) return null
   return (
     <div className="overlay overlay-drawer" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={title}>
+      <aside className={`drawer${className ? ` ${className}` : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="drawer-head">
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>{title}</h2>
           <button className="icon-btn" aria-label="Cerrar" onClick={onClose}>

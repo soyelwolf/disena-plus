@@ -203,6 +203,11 @@ function describirEvento(e: EventoProceso): { titulo: string; detalle?: string; 
       return { titulo: `Devuelto al docente por ${quien}`, detalle: 'Se habilitó la edición para hacer los cambios.', icono: 'alert', tono: 'alerta' }
     case 'habilitado':
       return { titulo: 'Edición habilitada por Monitor EA', detalle: 'La aprobación empieza de nuevo.', icono: 'lock', tono: 'alerta' }
+    // Incidents: the decision and its reason stay on record for the whole team.
+    case 'cambio_instrumento':
+      return { titulo: `Incidencia · cambio de instrumento${e.rol ? ` (${e.rol})` : ''}`, icono: 'alert', tono: 'alerta' }
+    case 'quitado':
+      return { titulo: `Incidencia · ${parte || 'instrumento'}: se quitó un elemento${e.rol ? ` (${e.rol})` : ''}`, icono: 'trash', tono: 'alerta' }
   }
 }
 

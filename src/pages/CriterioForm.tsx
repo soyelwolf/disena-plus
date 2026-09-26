@@ -5,6 +5,7 @@ import { CAMPO_GENERAL, PanelComentarios, type FiltroComentarios } from '../comp
 import TextoEnriquecido from '../components/TextoEnriquecido'
 import { estaVacio, longitud } from '../shared/textoRico'
 import { Breadcrumbs, Cargando, CursoHeader, ErrorPanel, Modal, useToast } from '../components/ui'
+import RecursosCurso from '../components/RecursosCurso'
 import { useAuth } from '../shared/AuthContext'
 import {
   LIMITES,
@@ -50,6 +51,12 @@ function erroresFila(f: Fila): Partial<Record<keyof CriterioCampos, string>> {
     if (p !== '' && !/^\d+(\.\d+)?$/.test(p)) e[n.puntaje] = 'Solo números (entero o decimal)'
   }
   return e
+}
+
+/** − / + buttons (and ↑ ↓) move a score in steps of 0.5, never below 0 — same as Lista de cotejo and Escala. */
+function moverPuntaje(v: string, dir: 1 | -1): string {
+  const nuevo = Math.max(0, Math.round(((Number(v) || 0) + dir * 0.5) * 100) / 100)
+  return nuevo === 0 && dir < 0 ? '' : String(nuevo)
 }
 
 /** Scores accept only digits and one decimal point (a comma counts as the point). */
@@ -263,7 +270,13 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
           </button>
         </span>
       </div>
-      <CursoHeader titulo={elemento.nombre} curso={ctx.nombre} tipoEnsenanza={ctx.tipoEnsenanza} programas={ctx.programas} />
+      <CursoHeader
+        titulo={elemento.nombre}
+        curso={ctx.nombre}
+        tipoEnsenanza={ctx.tipoEnsenanza}
+        programas={ctx.programas}
+        acciones={<RecursosCurso cursoId={ctx.id} curso={ctx.nombre} elemento={elemento.nombre} queSeEvaluara={elemento.consigna?.dpl_queseevaluara} />}
+      />
 
       <ResumenRubrica criterios={filas.map(r => r.f)} eliminados={0} nota="Los cambios se guardan automáticamente." />
 
@@ -339,7 +352,7 @@ export default function CriterioForm({ completa = false }: { completa?: boolean 
         }}
         puedeComentar={false}
         puedeResponder
-        puedeResolver={rol.monitor || rol.dda}
+        puedeResolver={rol.revisor}
         lado={rol.lado}
         etiquetaRol={rol.etiqueta}
       />
@@ -474,19 +487,29 @@ function FilaCriterio({ numero, fila, errores, onChange, onEliminar, pendientes 
               {NIVELES.map(n => (
                 <td key={n.texto}>
                   <TextoEnriquecido id={`${n.texto}-${numero}`} value={fila[n.texto]} max={LIMITES.criterioTexto} error={errores[n.texto]} onChange={v => onChange(n.texto, v)} placeholder="Ingresar información" minHeight={150} compacto />
-                  <label className="field-label" style={{ marginTop: 10, marginBottom: 6 }}>
-                    Puntaje
+                  <span className="field-label" style={{ marginTop: 10, marginBottom: 6 }}>Puntaje</span>
+                  <div className={`puntaje-paso${errores[n.puntaje] ? ' has-error' : ''}`}>
+                    <button type="button" aria-label={`Bajar puntaje ${n.label}`} disabled={!Number(fila[n.puntaje])} onClick={() => onChange(n.puntaje, moverPuntaje(fila[n.puntaje], -1))}>
+                      <Icon name="chevronDown" size={16} strokeWidth={2.4} />
+                    </button>
                     <input
                       type="text"
                       inputMode="decimal"
                       placeholder="Ej. 5 o 4.5"
                       value={fila[n.puntaje]}
                       onChange={e => onChange(n.puntaje, soloNumero(e.target.value))}
-                      className={errores[n.puntaje] ? 'has-error' : ''}
-                      style={{ marginTop: 6, height: 40, fontWeight: 400 }}
+                      onKeyDown={e => {
+                        if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                          e.preventDefault()
+                          onChange(n.puntaje, moverPuntaje(fila[n.puntaje], e.key === 'ArrowUp' ? 1 : -1))
+                        }
+                      }}
                       aria-label={`Puntaje ${n.label}`}
                     />
-                  </label>
+                    <button type="button" aria-label={`Subir puntaje ${n.label}`} onClick={() => onChange(n.puntaje, moverPuntaje(fila[n.puntaje], 1))}>
+                      <Icon name="chevronUp" size={16} strokeWidth={2.4} />
+                    </button>
+                  </div>
                   {errores[n.puntaje] && <span className="field-error"><Icon name="alert" size={13} />{errores[n.puntaje]}</span>}
                 </td>
               ))}

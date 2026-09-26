@@ -155,7 +155,11 @@ export function ZonaComentable(props: { children: ReactNode; citas: string[]; pu
           type="button"
           className="btn btn-primary btn-sm coment-seleccion"
           style={{ left: boton.x, top: boton.y }}
-          onMouseDown={e => e.preventDefault()}
+          // Keep the selection, and don't let the zone's own mousedown (which hides this button) remove it before the click.
+          onMouseDown={e => {
+            e.preventDefault()
+            e.stopPropagation()
+          }}
           onClick={() => {
             onComentar(boton.texto)
             setBoton(null)
@@ -451,7 +455,7 @@ function Mensaje({ c }: { c: Comentario }) {
       <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
           <b>{c.autor || 'Sin nombre'}</b>
-          <span className={`coment-rol ${c.lado}`}>{c.lado === 'docente' ? c.rol || 'Docente' : LADO_LABEL[c.lado]}</span>
+          <span className={`coment-rol ${c.lado}`}>{c.rol || LADO_LABEL[c.lado]}</span>
         </span>
         <span className="coment-fecha">{fechaHora(c.fecha)}</span>
       </span>

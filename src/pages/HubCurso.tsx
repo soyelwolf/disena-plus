@@ -14,12 +14,16 @@ import {
   type EstadoActivacion,
   type ProcesoActivable,
   getRubricasCurso,
+  comentariosPendientes,
+  pendientesPorPreparar,
   problemaElemento,
   sinInstrumento,
   validarConsigna,
   type RubricasCurso,
 } from '../shared/academico'
 import { useContenidoAcademico } from '../shared/hooks/useContenidoAcademico'
+import { getListasCurso, problemaLista, type ListasCurso } from '../shared/listaCotejo'
+import { getEscalasCurso, problemaEscala, type EscalasCurso } from '../shared/escala'
 
 interface Tarjeta {
   titulo: string
@@ -31,12 +35,16 @@ interface Tarjeta {
   icon?: IconName
   /** Process behind the card, for the ACTIVAR button. */
   proceso?: ProcesoActivable
+  /** Unresolved reviewer comments in this part. */
+  comentarios?: number
 }
 
 export default function HubCurso() {
   const { cursoId } = useParams<{ cursoId: string }>()
   const { ctx, proceso, rol, error, loading, recargar } = useContenidoAcademico(cursoId)
   const [rubricas, setRubricas] = useState<RubricasCurso | null>(null)
+  const [listas, setListas] = useState<ListasCurso | null>(null)
+  const [escalas, setEscalas] = useState<EscalasCurso | null>(null)
   const [verFlujo, setVerFlujo] = useState(false)
   const [verAsignar, setVerAsignar] = useState(false)
   // Sílabo and formato de orientación of the course (PDFs uploaded in Mis cursos / Centro de datos).
@@ -48,6 +56,8 @@ export default function HubCurso() {
   const { can, user } = useAuth()
   const toast = useToast()
   const [activacion, setActivacion] = useState<Record<ProcesoActivable, EstadoActivacion> | null>(null)
+  const [pendientes, setPendientes] = useState<Record<ProcesoActivable, number> | null>(null)
+  const [comentariosAbiertos, setComentariosAbiertos] = useState<Record<string, number>>({})
   const [confirmar, setConfirmar] = useState<Tarjeta | null>(null)
   const [activando, setActivando] = useState(false)
   const puedeActivar = rol.editar || rol.admin
@@ -55,7 +65,11 @@ export default function HubCurso() {
   useEffect(() => {
     document.title = ctx ? `${ctx.nombre} — Diseña+` : 'Curso — Diseña+'
     if (ctx) getRubricasCurso(ctx).then(setRubricas).catch(() => setRubricas(null))
+    if (ctx) getListasCurso(ctx).then(setListas).catch(() => setListas(null))
+    if (ctx) getEscalasCurso(ctx).then(setEscalas).catch(() => setEscalas(null))
     if (ctx) getActivacion(ctx).then(setActivacion).catch(() => setActivacion(null))
+    if (ctx) pendientesPorPreparar(ctx).then(setPendientes).catch(() => setPendientes(null))
+    if (ctx) comentariosPendientes(ctx.id).then(setComentariosAbiertos).catch(() => setComentariosAbiertos({}))
   }, [ctx])
 
   if (loading) return <Cargando texto="Cargando curso" />
@@ -63,8 +77,18 @@ export default function HubCurso() {
 
   const total = ctx.elementos.length
   const consignasOk = ctx.elementos.filter(e => validarConsigna(e.consigna).completa).length
+  // Where a finalized part is in the review (it is sent only when every part is finalized).
+  const enRevision =
+    proceso.estado === 'aprobado' ? 'Aprobado por Monitor EA y DDA'
+    : proceso.estado === 'revision_dda' ? 'Aprobado por Monitor EA · falta DDA'
+    : proceso.estado === 'revision_monitor' ? 'En revisión del Monitor EA'
+    : 'Finalizado · falta terminar otras partes'
   const rubricaEls = rubricas?.elementos ?? []
   const rubricasOk = rubricaEls.filter(r => problemaElemento(r) === null).length
+  const listaEls = listas?.elementos ?? []
+  const listasOk = listaEls.filter(l => problemaLista(l) === null).length
+  const escalaEls = escalas?.elementos ?? []
+  const escalasOk = escalaEls.filter(x => problemaEscala(x) === null).length
 
   const academico: Tarjeta[] = [
     {
@@ -73,7 +97,8 @@ export default function HubCurso() {
       subtitulo: 'Instrucciones para tu tarea',
       to: `/cursos/${ctx.id}/consignas`,
       avance: total ? (consignasOk / total) * 100 : 0,
-      detalle: proceso.finalizado.consignas ? 'Avisado a revisión' : `${consignasOk} de ${total} completadas`,
+      detalle: proceso.finalizado.consignas ? enRevision : `${consignasOk} de ${total} completadas`,
+      comentarios: comentariosAbiertos.consignas,
       estado: ctx.permite.consignas || total > 0 ? 'activo' : 'bloqueado',
     },
     {
@@ -84,14 +109,47 @@ export default function HubCurso() {
       avance: rubricaEls.length ? (rubricasOk / rubricaEls.length) * 100 : 0,
       detalle: !rubricas
         ? 'Calculando…'
-        : proceso.finalizado.rubricas
-          ? 'Avisado a revisión'
-          : `${rubricasOk} de ${rubricaEls.length} elementos completos`,
-      estado: rubricas && rubricaEls.length === 0 ? 'no_aplica' : 'activo',
+        : rubricas.faltantes.length
+          ? porPreparar(rubricas.faltantes.length)
+          : proceso.finalizado.rubricas
+            ? enRevision
+            : `${rubricasOk} de ${rubricaEls.length} elementos completos`,
+      estado: rubricas && rubricaEls.length === 0 && rubricas.faltantes.length === 0 ? 'no_aplica' : 'activo',
+      comentarios: comentariosAbiertos.rubricas,
     },
     { titulo: 'Matriz', proceso: 'matriz', subtitulo: 'Cuadro detallado de puntajes', estado: ctx.permite.matriz ? 'proximamente' : 'bloqueado' },
-    { titulo: 'Lista de cotejo', proceso: 'lista', subtitulo: 'Requisitos mínimos a cumplir', estado: ctx.permite.lista ? 'proximamente' : 'bloqueado' },
-    { titulo: 'Escala de valoración', proceso: 'escala', subtitulo: 'Medición del nivel alcanzado', estado: ctx.permite.escala ? 'proximamente' : 'bloqueado' },
+    {
+      titulo: 'Lista de cotejo',
+      proceso: 'lista',
+      subtitulo: 'Requisitos mínimos a cumplir',
+      to: `/cursos/${ctx.id}/lista`,
+      avance: listaEls.length ? (listasOk / listaEls.length) * 100 : 0,
+      detalle: !listas
+        ? 'Calculando…'
+        : listas.faltantes.length
+          ? porPreparar(listas.faltantes.length)
+          : proceso.finalizado.lista
+            ? enRevision
+            : `${listasOk} de ${listaEls.length} elementos completos`,
+      estado: !ctx.permite.lista ? 'bloqueado' : listas && listaEls.length === 0 && listas.faltantes.length === 0 ? 'no_aplica' : 'activo',
+      comentarios: comentariosAbiertos.lista,
+    },
+    {
+      titulo: 'Escala de valoración',
+      proceso: 'escala',
+      subtitulo: 'Medición del nivel alcanzado',
+      to: `/cursos/${ctx.id}/escala`,
+      avance: escalaEls.length ? (escalasOk / escalaEls.length) * 100 : 0,
+      detalle: !escalas
+        ? 'Calculando…'
+        : escalas.faltantes.length
+          ? porPreparar(escalas.faltantes.length)
+          : proceso.finalizado.escala
+            ? enRevision
+            : `${escalasOk} de ${escalaEls.length} elementos completos`,
+      estado: !ctx.permite.escala ? 'bloqueado' : escalas && escalaEls.length === 0 && escalas.faltantes.length === 0 ? 'no_aplica' : 'activo',
+      comentarios: comentariosAbiertos.escala,
+    },
   ]
 
   // Not assigned by the administrator → NO ASIGNADO; assigned but not yet
@@ -261,6 +319,14 @@ export default function HubCurso() {
         onClose={() => setVerAsignar(false)}
         cursoId={ctx.id}
         activacion={activacion}
+        pendientes={pendientes}
+        onPreparar={async p => {
+          if (!user) return 0
+          const n = await activarProceso(ctx, p, user.correo)
+          await recargar()
+          setPendientes(await pendientesPorPreparar(ctx).catch(() => null))
+          return n
+        }}
         onCambio={async () => {
           await recargar()
         }}
@@ -269,6 +335,9 @@ export default function HubCurso() {
     </div>
   )
 }
+
+/** The consigna chose this instrument after the process was activated: the element still has to be added. */
+const porPreparar = (n: number) => `${n} ${n === 1 ? 'elemento nuevo' : 'elementos nuevos'} por agregar`
 
 function SeccionHead(props: { numero: number; titulo: string; subtitulo: string; chip: React.ReactNode }) {
   return (
@@ -308,6 +377,11 @@ function TarjetaProceso({ t, onActivar, motivoBloqueo }: { t: Tarjeta; onActivar
       <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{t.subtitulo}</span>
       <span style={{ fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
         {t.estado === 'activo' && <><Icon name="pencil" size={13} strokeWidth={2} />{t.detalle}</>}
+        {t.estado === 'activo' && !!t.comentarios && (
+          <span className="chip chip-revision" style={{ marginLeft: 'auto' }} title="Comentarios de los revisores sin resolver">
+            <Icon name="comment" size={12} />{t.comentarios} {t.comentarios === 1 ? 'comentario pendiente' : 'comentarios pendientes'}
+          </span>
+        )}
         {t.estado === 'bloqueado' && <><Icon name="lock" size={13} strokeWidth={2} />No asignado</>}
         {t.estado === 'proximamente' && <><Icon name="clock" size={13} strokeWidth={2} />Próximamente</>}
         {t.estado === 'no_aplica' && <>Ningún elemento usa este instrumento</>}
@@ -335,9 +409,13 @@ function AsignarProcesos(props: {
   onClose: () => void
   cursoId: string
   activacion: Record<ProcesoActivable, EstadoActivacion> | null
+  /** Rows "Preparar nuevos" would create now, per process (null while loading). */
+  pendientes: Record<ProcesoActivable, number> | null
+  /** Run the activation again: creates only what is missing (elements whose consigna chose the instrument later). */
+  onPreparar: (p: ProcesoActivable) => Promise<number>
   onCambio: () => Promise<void>
 }) {
-  const { open, onClose, cursoId, activacion, onCambio } = props
+  const { open, onClose, cursoId, activacion, pendientes, onPreparar, onCambio } = props
   const toast = useToast()
   const [guardando, setGuardando] = useState<ProcesoActivable | null>(null)
 
@@ -354,11 +432,24 @@ function AsignarProcesos(props: {
     }
   }
 
+  const preparar = async (p: ProcesoActivable, label: string) => {
+    setGuardando(p)
+    try {
+      const n = await onPreparar(p)
+      toast(n ? `${label}: ${n} ${n === 1 ? 'elemento preparado' : 'elementos preparados'}` : `${label}: no había elementos nuevos por preparar`)
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'No se pudo preparar.', 'error')
+    } finally {
+      setGuardando(null)
+    }
+  }
+
   return (
     <Drawer open={open} onClose={onClose} title="Asignar procesos" footer={<button className="btn btn-primary" onClick={onClose}>Listo</button>}>
       <p style={{ fontSize: 14, lineHeight: 1.5, color: '#3d434a' }}>
         Marca los procesos que trabajará este curso. Es la misma casilla <b>Permite_*</b> de LISTADO_CURSOS_PARA_IA en el Centro de datos.
         Luego, en cada tarjeta, se pulsa <b>Activar</b> para preparar los elementos.
+        Si después una consigna elige ese instrumento, o el sílabo trae un elemento nuevo, aparece <b>Preparar nuevos</b>: agrega solo lo que falta (no borra ni cambia lo ya hecho).
       </p>
       {PROCESOS_ASIGNABLES.map(({ proceso: p, label, columna }) => {
         const est = activacion?.[p]
@@ -378,7 +469,19 @@ function AsignarProcesos(props: {
             {guardando === p ? (
               <Spinner />
             ) : activado ? (
-              <span className="chip chip-aprobado" title="Ya se activó: no se puede quitar"><Icon name="checkCircle" size={13} />Activado</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Only when something is actually missing. */}
+                {!!pendientes?.[p] && (
+                  <button
+                    className="btn btn-outline btn-sm"
+                    title={p === 'consignas' ? 'Elementos del sílabo que aún no tienen consigna' : 'Elementos cuya consigna eligió este instrumento después de activar'}
+                    onClick={e => { e.preventDefault(); preparar(p, label) }}
+                  >
+                    Preparar {pendientes[p]} {pendientes[p] === 1 ? 'nuevo' : 'nuevos'}
+                  </button>
+                )}
+                <span className="chip chip-aprobado" title="Ya se activó: no se puede quitar"><Icon name="checkCircle" size={13} />Activado</span>
+              </span>
             ) : est?.asignado ? (
               <span className="chip chip-revision">Por activar</span>
             ) : (
